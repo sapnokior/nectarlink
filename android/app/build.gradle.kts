@@ -17,7 +17,7 @@ val appVersionCode: Int = appVersion.substringBefore('-').split('.').map(String:
 android {
     namespace = "app.nectarlink.android"
     compileSdk = 37
-    ndkVersion = "30.0.16248370"
+    ndkVersion = "29.0.14206865"
 
     defaultConfig {
         applicationId = "app.nectarlink"
@@ -106,6 +106,7 @@ abstract class CargoNdkBuild : DefaultTask() {
         exec.exec {
             workingDir = workspace.get().asFile
             environment("ANDROID_NDK_HOME", ndk.get().asFile.absolutePath)
+            environment("LIB", "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\lib\\onecore\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\x64;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\x64")
             commandLine(
                 buildList {
                     addAll(listOf("cargo", "ndk", "--platform", "26", "-o", outputDir.get().asFile.path))
@@ -129,8 +130,7 @@ abstract class UniffiBindgen : DefaultTask() {
         exec.exec {
             workingDir = workspace.get().asFile
             commandLine(
-                "cargo", "run", "--quiet", "--locked", "-p", "nectarlink-ffi", "--features", "bindgen",
-                "--bin", "uniffi-bindgen", "--", "generate", "--library", library.get().asFile.path,
+                "uniffi-bindgen", "generate", "--library", library.get().asFile.path,
                 "--language", "kotlin", "--no-format", "--out-dir", outputDir.get().asFile.path,
             )
         }
@@ -159,7 +159,7 @@ abstract class BundleFonts : DefaultTask() {
 
 val workspaceDir: Directory = rootProject.layout.projectDirectory.dir("..")
 val rustAbis: List<String> =
-    (findProperty("nectarlink.abis") as String?)?.split(",")?.map(String::trim) ?: listOf("arm64-v8a", "x86_64")
+    (findProperty("nectarlink.abis") as String?)?.split(",")?.map(String::trim) ?: listOf("arm64-v8a")
 
 androidComponents {
     onVariants { variant ->

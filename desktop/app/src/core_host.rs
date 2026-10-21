@@ -243,8 +243,33 @@ async fn run(data_dir: PathBuf, platform: Arc<dyn Platform>) {
         let mut was_active = false;
         let mut last_sent_at = std::time::Instant::now() - std::time::Duration::from_secs(60);
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             let Some(node) = self::node() else { continue };
+
+            // Query and broadcast local PC battery to UI and all connected peers
+            if let Some(bat_info) = crate::win::local_battery() {
+                crate::bridge::app::update_pc_battery_ui(&bat_info.status_text, bat_info.charging);
+                let plugged = if bat_info.charging {
+                    Some("ac".to_string())
+                } else if let Some(empty) = bat_info.empty_in {
+                    Some(format!("drain:{empty}"))
+                } else {
+                    None
+                };
+                let bat = nectarlink_core::Battery {
+                    level: bat_info.level,
+                    charging: bat_info.charging,
+                    plugged,
+                    full_in: bat_info.full_in,
+                    cell_bars: None,
+                    cell_type: None,
+                    wifi_bars: None,
+                };
+                let node_clone = node.clone();
+                tokio::spawn(async move {
+                    node_clone.update_battery(bat).await;
+                });
+            }
             let online_peers: Vec<_> = host.hub.read(|s| {
                 s.devices
                     .iter()

@@ -418,10 +418,29 @@ class BatteryMonitor(private val context: Context, private val onChange: (Batter
             } else {
                 null
             }
+            val finalPlugged: String? = if (charging) {
+                plugged
+            } else {
+                val bm = context.getSystemService(BatteryManager::class.java)
+                val chargeCounterUah = runCatching {
+                    bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: -1
+                }.getOrDefault(-1)
+                val currentNowUa = runCatching {
+                    bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
+                }.getOrDefault(0)
+                val pct = (level * 100 / scale).coerceIn(0, 100)
+                val drainMins = if (chargeCounterUah > 0 && Math.abs(currentNowUa) > 50_000) {
+                    val mins = (chargeCounterUah.toLong() * 60L) / Math.abs(currentNowUa).toLong()
+                    mins.coerceIn(15L, 2880L).toInt()
+                } else {
+                    (pct * 5.5).toInt().coerceAtLeast(1)
+                }
+                "drain:$drainMins"
+            }
             val battery = Battery(
                 level = (level * 100 / scale).coerceIn(0, 100).toUByte(),
                 charging = charging,
-                plugged = plugged,
+                plugged = finalPlugged,
                 fullIn = fullIn,
                 cellBars = null,
                 cellType = null,

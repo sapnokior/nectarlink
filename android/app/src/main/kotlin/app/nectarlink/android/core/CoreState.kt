@@ -247,6 +247,8 @@ data class CoreState(
     val keyboardFromPc: Set<String> = emptySet(),
     /** Vibrant seed color (`0xRRGGBB`) extracted from currently playing phone or PC media artwork. */
     val activeMediaColor: UInt? = null,
+    /** This phone's local battery state. */
+    val localBattery: app.nectarlink.core.Battery? = null,
 ) {
     fun device(id: String): Device? = devices.firstOrNull { it.id == id }
 

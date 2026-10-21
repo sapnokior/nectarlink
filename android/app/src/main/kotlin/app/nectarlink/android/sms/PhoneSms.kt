@@ -2,6 +2,7 @@
 package app.nectarlink.android.sms
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
@@ -118,9 +119,47 @@ internal class PhoneSms(context: Context, private val onChange: () -> Unit) {
 
     fun messages(thread: String, before: Long?, limit: Int): List<SmsMessage> = guarded(emptyList()) {
         val threadId = thread.toLongOrNull() ?: return@guarded emptyList()
+        markThreadRead(threadId)
         (sms(threadId, before, limit) + mms(threadId, before, limit))
             .sortedByDescending { it.date }
             .take(limit)
+    }
+
+    /** Marks all unread SMS and MMS in [threadId] as read on the phone's database. */
+    fun markThreadRead(threadId: Long) {
+        try {
+            val values = ContentValues().apply {
+                put(Telephony.Sms.READ, 1)
+                put(Telephony.Sms.SEEN, 1)
+            }
+            // Update SMS table
+            resolver.update(
+                Telephony.Sms.CONTENT_URI,
+                values,
+                "${Telephony.Sms.THREAD_ID} = ? AND ${Telephony.Sms.READ} = 0",
+                arrayOf(threadId.toString()),
+            )
+            // Update conversation URI
+            resolver.update(
+                Uri.parse("content://sms/conversations/$threadId"),
+                values,
+                "${Telephony.Sms.READ} = 0",
+                null,
+            )
+            // Update MMS inbox table
+            val mmsValues = ContentValues().apply {
+                put("read", 1)
+                put("seen", 1)
+            }
+            resolver.update(
+                Uri.parse("content://mms/inbox"),
+                mmsValues,
+                "thread_id = ? AND read = 0",
+                arrayOf(threadId.toString()),
+            )
+        } catch (e: Exception) {
+            Log.w("PhoneSms", "Failed to mark thread $threadId as read on device", e)
+        }
     }
 
     private fun sms(thread: Long, before: Long?, limit: Int): List<SmsMessage> {

@@ -12,7 +12,7 @@ Rectangle {
     readonly property string shortLabel: {
         const s = feature || {}
         switch (s.action) {
-        case "raisePower": return s.target === "elevated" ? qsTr("Elevated") : qsTr("Assist")
+        case "raisePower": return s.target === "elevated" ? "" : qsTr("Assist")
         case "grantPermission":
             return s.target === "notification_access" ? qsTr("Notification access")
                  : s.target === "dnd_access" ? qsTr("DND access")

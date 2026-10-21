@@ -302,16 +302,19 @@ fun HomeScreen(
     ) {
         item(key = "home_header", contentType = "header") {
             Row(Modifier.padding(top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.home_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    onClick = onOpenFeaturesGuide,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Text(stringResource(R.string.home_guide_title))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.home_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                    state.localBattery?.let { b ->
+                        Text(
+                            text = "This phone: " + formatBatteryInfo(b),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
                 // Reconnects and syncs with the PCs; spins once to say so.
                 val spin = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -336,19 +339,7 @@ fun HomeScreen(
                 }
             }
         }
-        if (showWhatsNewGuideBanner) {
-            item(key = "whats_new_guide_banner", contentType = "banner") {
-                WhatsNewFeaturesGuideCard(
-                    onOpenGuide = {
-                        onDismissWhatsNewGuide()
-                        onOpenFeaturesGuide()
-                    },
-                    onDismiss = onDismissWhatsNewGuide,
-                )
-            }
-        }
-        // After the What's new card, one at a time.
-        if (showHiveInvite && !showWhatsNewGuideBanner) {
+        if (showHiveInvite) {
             item(key = "hive_invite", contentType = "banner") {
                 HiveInviteCard(onTry = onTryHive, onDismiss = onDismissHiveInvite)
             }
@@ -649,8 +640,7 @@ fun HomeScreen(
             var missingCount = 0
             if (!state.backgroundUnrestricted) missingCount++
             if (!state.notificationAccess) missingCount++
-            if (!state.elevated) missingCount++
-            if (!state.inputAccess && !state.elevated) missingCount++
+            if (!state.inputAccess) missingCount++
             if (!state.smsAccess) missingCount++
             if (!state.callAccess) missingCount++
             if (!state.contactsAccess) missingCount++
@@ -671,21 +661,7 @@ fun HomeScreen(
                 }
             }
         }
-        if (state.localsendEnabled) {
-            item(key = "localsend_card", contentType = "localsend") {
-                Box(
-                    modifier = Modifier.guideHighlightRing(
-                        highlighted = pulsingTarget == GuideHighlightTarget.HOME_LOCALSEND,
-                    ),
-                ) {
-                    LocalSendCard(
-                        peers = state.localsendPeers,
-                        onRefresh = onRefreshLocalSend,
-                        onSendFiles = onSendFiles,
-                    )
-                }
-            }
-        }
+
         if (state.clipboardHistoryEnabled && state.clipboardHistory.isNotEmpty()) {
             item(key = "clipboard_history_card", contentType = "clipboard") {
                 Box(
@@ -1136,22 +1112,7 @@ private fun PermissionsSetupCard(
                         runCatching { context.startActivity(NotificationListener.settingsIntent(context)) }
                     }
                 }
-                if (!state.elevated) {
-                    SetupCard(
-                        title = stringResource(R.string.home_background_clipboard_title),
-                        text = stringResource(R.string.home_background_clipboard_body),
-                        secondaryLabel = stringResource(R.string.elevated_open_developer),
-                        onSecondary = { openDeveloperOptions(context) },
-                    ) {
-                        scope.launch {
-                            app.nectarlink.android.elevated.PairingNotification.show(context)
-                            if (!app.nectarlink.android.elevated.Elevated.start()) {
-                                openDeveloperOptions(context)
-                            }
-                        }
-                    }
-                }
-                if (!state.inputAccess && !state.elevated) {
+                if (!state.inputAccess) {
                     SetupCard(
                         stringResource(R.string.control_title),
                         stringResource(R.string.control_off),
@@ -1253,6 +1214,38 @@ private fun KeyboardBanner(from: String, onStop: () -> Unit) {
     }
 }
 
+private fun formatBatteryInfo(battery: app.nectarlink.core.Battery): String {
+    val level = battery.level.toInt()
+    if (battery.charging) {
+        if (level >= 100) return "$level% · Fully charged"
+        val fullIn = battery.fullIn?.toInt()
+        val eta = if (fullIn != null && fullIn > 0) {
+            val h = fullIn / 60
+            val m = fullIn % 60
+            if (h > 0 && m > 0) "~${h}h ${m}m to full"
+            else if (h > 0) "~${h}h to full"
+            else "~${m}m to full"
+        } else {
+            val estMins = ((100 - level) * 1.5).toInt().coerceAtLeast(1)
+            val h = estMins / 60
+            val m = estMins % 60
+            if (h > 0 && m > 0) "~${h}h ${m}m to full"
+            else if (h > 0) "~${h}h to full"
+            else "~${m}m to full"
+        }
+        return "$level% · $eta"
+    } else {
+        val drainMins = battery.plugged?.removePrefix("drain:")?.toIntOrNull()
+            ?: (level * 5.5).toInt().coerceAtLeast(1)
+        val h = drainMins / 60
+        val m = drainMins % 60
+        val eta = if (h > 0 && m > 0) "~${h}h ${m}m to full drain"
+        else if (h > 0) "~${h}h to full drain"
+        else "~${m}m to full drain"
+        return "$level% · $eta"
+    }
+}
+
 @Composable
 private fun PeerCard(
     device: Device,
@@ -1291,8 +1284,7 @@ private fun PeerCard(
             }
             device.battery?.let { battery ->
                 Text(
-                    text = if (battery.charging) stringResource(R.string.battery_charging, battery.level.toInt())
-                    else stringResource(R.string.battery_level, battery.level.toInt()),
+                    text = formatBatteryInfo(battery),
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
@@ -1443,8 +1435,7 @@ private fun PcCard(
                 }
                 device.battery?.let { battery ->
                     Text(
-                        text = if (battery.charging) stringResource(R.string.battery_charging, battery.level.toInt())
-                        else stringResource(R.string.battery_level, battery.level.toInt()),
+                        text = formatBatteryInfo(battery),
                         style = MaterialTheme.typography.labelMedium,
                         color = ink,
                         modifier = Modifier
@@ -1488,43 +1479,8 @@ private fun PcCard(
                         contentPadding = CardButtonPadding,
                         enabled = device.online,
                         colors = tonal,
-                        onClick = { onDeck(device.id) },
-                        modifier = Modifier.weight(1f).heightIn(min = 46.dp),
-                    ) {
-                        Icon(
-                            imageVector = DeckGridIcon,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        ButtonLabel(stringResource(R.string.action_deck_pc))
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilledTonalButton(
-                        contentPadding = CardButtonPadding,
-                        enabled = device.online,
-                        colors = tonal,
-                        onClick = { onDesk(device.id) },
-                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                    ) {
-                        Icon(
-                            imageVector = DeskClockIcon,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        ButtonLabel(stringResource(R.string.action_desk_pc))
-                    }
-                    FilledTonalButton(
-                        contentPadding = CardButtonPadding,
-                        enabled = device.online,
-                        colors = tonal,
                         onClick = { onWebcam(device.id) },
-                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 46.dp),
                     ) {
                         Icon(
                             imageVector = CameraLensIcon,

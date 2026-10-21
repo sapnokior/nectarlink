@@ -3278,37 +3278,7 @@ Item {
                     }
                 }
 
-                Card {
-                    width: parent.width
-                    Column {
-                        width: parent.width
-                        ListRow {
-                            width: parent.width
-                            iconPath: Icons.compass
-                            title: qsTr("Setup walkthrough")
-                            description: qsTr("Re-open the setup guide.")
-                            Button {
-                                variant: "tonal"
-                                size: "sm"
-                                text: qsTr("Open")
-                                onClicked: Preferences.restartWalkthrough()
-                            }
-                        }
-                        Divider { width: parent.width }
-                        ListRow {
-                            width: parent.width
-                            iconPath: Icons.book
-                            title: qsTr("Features guide")
-                            description: qsTr("What each feature needs and where to find it.")
-                            Button {
-                                variant: "tonal"
-                                size: "sm"
-                                text: qsTr("Open")
-                                onClicked: AppController.currentPage = "guide"
-                            }
-                        }
-                    }
-                }
+
             }
         }
     }

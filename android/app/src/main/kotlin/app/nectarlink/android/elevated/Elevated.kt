@@ -277,8 +277,10 @@ object Elevated {
 
     // ---- Starting ----
 
-    /** Connects and starts the input helper (when set up; again after it stopped). */
-    suspend fun start(): Boolean = withContext(Dispatchers.IO) {
+    /** Disabled: app runs completely without ADB or Wireless Debugging. */
+    suspend fun start(): Boolean = false
+
+    suspend fun startInternal(): Boolean = withContext(Dispatchers.IO) {
         if (!paired() && !usesRoot()) return@withContext false
         // Paused for a banking app: debugging stays off until it's over
         // (BankingPause starts Elevated again then).
@@ -432,6 +434,8 @@ object Elevated {
         if (BankingPause.apps(context).isNotEmpty() && !BankingPause.hasUsageAccess(context)) {
             add("appops set $pkg GET_USAGE_STATS allow")
         }
+        // Lets NectarLink mark messages as read in the phone's SMS store.
+        add("appops set $pkg WRITE_SMS allow")
     }
 
     private fun launch(adb: Connection) {

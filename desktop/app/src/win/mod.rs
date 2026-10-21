@@ -122,6 +122,78 @@ pub fn is_laptop() -> bool {
     ok && status.BatteryFlag != 128 && status.BatteryFlag != 255
 }
 
+#[derive(Debug, Clone)]
+pub struct LocalBatteryInfo {
+    pub level: u8,
+    pub charging: bool,
+    pub status_text: String,
+    pub full_in: Option<u16>,
+    pub empty_in: Option<u16>,
+}
+
+pub fn local_battery() -> Option<LocalBatteryInfo> {
+    let mut status = SYSTEM_POWER_STATUS::default();
+    let ok = unsafe { GetSystemPowerStatus(&mut status) }.is_ok();
+    if !ok || status.BatteryFlag == 128 || status.BatteryFlag == 255 {
+        return None;
+    }
+    let level = status.BatteryLifePercent.min(100);
+    let charging = status.ACLineStatus == 1 || (status.BatteryFlag & 8 != 0);
+    if charging {
+        if level >= 100 {
+            Some(LocalBatteryInfo {
+                level,
+                charging: true,
+                status_text: "100% · Fully charged".to_string(),
+                full_in: None,
+                empty_in: None,
+            })
+        } else {
+            let mins = ((100 - u16::from(level)) as f32 * 1.3) as u16;
+            let full_in = Some(mins.max(1));
+            let h = mins / 60;
+            let m = mins % 60;
+            let eta = if h > 0 && m > 0 {
+                format!("~{h}h {m}m to full")
+            } else if h > 0 {
+                format!("~{h}h to full")
+            } else {
+                format!("~{m}m to full")
+            };
+            Some(LocalBatteryInfo {
+                level,
+                charging: true,
+                status_text: format!("{level}% · {eta}"),
+                full_in,
+                empty_in: None,
+            })
+        }
+    } else {
+        let drain_mins = if status.BatteryLifeTime != u32::MAX && status.BatteryLifeTime > 0 {
+            ((status.BatteryLifeTime + 59) / 60) as u16
+        } else {
+            let mins = (u16::from(level) as f32 * 4.0) as u16;
+            mins.max(1)
+        };
+        let h = drain_mins / 60;
+        let m = drain_mins % 60;
+        let eta = if h > 0 && m > 0 {
+            format!("~{h}h {m}m to full drain")
+        } else if h > 0 {
+            format!("~{h}h to full drain")
+        } else {
+            format!("~{m}m to full drain")
+        };
+        Some(LocalBatteryInfo {
+            level,
+            charging: false,
+            status_text: format!("{level}% · {eta}"),
+            full_in: None,
+            empty_in: Some(drain_mins),
+        })
+    }
+}
+
 /// Whether battery saver (energy saver on Windows 11) is on: decorative
 /// animation should rest.
 pub fn power_saver() -> bool {

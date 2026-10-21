@@ -627,39 +627,7 @@ NativeWindow {
                 }
                 onClicked: window.page = "photos"
             }
-            NavItem {
-                iconPath: Icons.apps
-                text: qsTr("Apps")
-                selected: window.page === "apps"
-                activeHover: rail.hoveredNav === "apps"
-                onHoveredChanged: {
-                    if (hovered) rail.hoveredNav = "apps"
-                    else if (rail.hoveredNav === "apps") rail.hoveredNav = ""
-                }
-                onClicked: window.page = "apps"
-            }
-            NavItem {
-                iconPath: Icons.deck
-                text: qsTr("Deck")
-                selected: window.page === "deck"
-                activeHover: rail.hoveredNav === "deck"
-                onHoveredChanged: {
-                    if (hovered) rail.hoveredNav = "deck"
-                    else if (rail.hoveredNav === "deck") rail.hoveredNav = ""
-                }
-                onClicked: window.page = "deck"
-            }
-            NavItem {
-                iconPath: Icons.book
-                text: qsTr("Guide")
-                selected: window.page === "guide"
-                activeHover: rail.hoveredNav === "guide"
-                onHoveredChanged: {
-                    if (hovered) rail.hoveredNav = "guide"
-                    else if (rail.hoveredNav === "guide") rail.hoveredNav = ""
-                }
-                onClicked: window.page = "guide"
-            }
+
             NavItem {
                 iconPath: Icons.settings
                 text: qsTr("Settings")

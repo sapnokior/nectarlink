@@ -106,6 +106,20 @@ Item {
         return m > 0 ? qsTr("~%1h %2m to full").arg(h).arg(m) : qsTr("~%1h to full").arg(h)
     }
 
+    function formatDrainEta(plugged, level) {
+        let mins = 0
+        if (plugged && typeof plugged === "string" && plugged.indexOf("drain:") === 0) {
+            mins = parseInt(plugged.substring(6), 10) || 0
+        }
+        if (mins <= 0) {
+            mins = Math.round(level * 5.5)
+        }
+        if (mins <= 0) return ""
+        const h = Math.floor(mins / 60)
+        const m = mins % 60
+        return h > 0 ? (m > 0 ? qsTr("~%1h %2m left").arg(h).arg(m) : qsTr("~%1h left").arg(h)) : qsTr("~%1m left").arg(m)
+    }
+
     function roundedRectSvg(x, y, w, h, tl, tr, br, bl) {
         if (w <= 0 || h <= 0) return ""
         const maxR = Math.min(w, h) * 0.48
@@ -394,20 +408,6 @@ Item {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
-                        Button {
-                            variant: "text"
-                            size: "sm"
-                            iconPath: Icons.book
-                            text: qsTr("Features guide")
-                            onClicked: AppController.currentPage = "guide"
-                        }
-                        Button {
-                            variant: "tonal"
-                            size: "sm"
-                            iconPath: Icons.compass
-                            text: qsTr("Setup walkthrough")
-                            onClicked: Preferences.restartWalkthrough()
-                        }
                         Button {
                             size: "sm"
                             iconPath: Icons.plus
@@ -1020,11 +1020,13 @@ Item {
                                     opacity: 0.90
                                     text: {
                                         if (home.charging) {
+                                            if (home.battery >= 100) return qsTr("Fully charged")
                                             const eta = page.formatChargeEta(home.batteryFullIn)
                                             return eta.length > 0 ? eta : qsTr("Charging")
                                         }
-                                        if (home.battery <= 20)
-                                            return qsTr("Low")
+                                        if (home.battery >= 0) {
+                                            return page.formatDrainEta(home.batteryPlugged, home.battery)
+                                        }
                                         return ""
                                     }
                                 }
@@ -1095,12 +1097,22 @@ Item {
                                                            : qsTr("Offline"))
                             }
                             Chip {
-                                visible: home.online && home.charging
-                                iconPath: Icons.bolt
+                                visible: home.online && home.battery >= 0
+                                iconPath: home.charging ? Icons.bolt : Icons.battery
                                 text: {
-                                    const eta = page.formatChargeEta(home.batteryFullIn)
-                                    return eta.length > 0 ? eta : qsTr("Charging")
+                                    if (home.charging) {
+                                        if (home.battery >= 100) return qsTr("Phone: 100% · Fully charged")
+                                        const eta = page.formatChargeEta(home.batteryFullIn)
+                                        return eta.length > 0 ? qsTr("Phone: %1% · %2 to full").arg(home.battery).arg(eta) : qsTr("Phone: %1% · Charging").arg(home.battery)
+                                    }
+                                    const eta = page.formatDrainEta(home.batteryPlugged, home.battery)
+                                    return eta.length > 0 ? qsTr("Phone: %1% · %2 to full drain").arg(home.battery).arg(eta) : qsTr("Phone: %1%").arg(home.battery)
                                 }
+                            }
+                            Chip {
+                                visible: AppController.pcBatteryStatus.length > 0
+                                iconPath: AppController.pcBatteryCharging ? Icons.bolt : Icons.battery
+                                text: qsTr("PC: %1").arg(AppController.pcBatteryStatus)
                             }
                         }
                         Button {

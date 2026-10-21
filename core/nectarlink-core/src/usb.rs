@@ -241,7 +241,13 @@ pub(crate) async fn connect_usb_tunnel(shared: &Arc<Shared>, forwarded_tcp: Sock
 /// Starts the PC-side ADB watcher that tracks USB-connected Android devices,
 /// sets up `adb forward tcp:0 tcp:53319` (and the other profile ports), and
 /// maintains a USB tunnel to each NectarLink profile that answers.
-pub(crate) fn start_adb_watcher(shared: &Arc<Shared>, adb_addr: SocketAddr) {
+/// ADB watcher disabled: app runs completely independently without ADB or Developer options.
+pub(crate) fn start_adb_watcher(_shared: &Arc<Shared>, _adb_addr: SocketAddr) {
+    // Intentionally no-op to remove all ADB / Developer Options dependency.
+}
+
+#[allow(dead_code)]
+fn start_adb_watcher_unused(shared: &Arc<Shared>, adb_addr: SocketAddr) {
     let weak = Arc::downgrade(shared);
     let cancel = shared.cancel.clone();
     tokio::spawn(async move {

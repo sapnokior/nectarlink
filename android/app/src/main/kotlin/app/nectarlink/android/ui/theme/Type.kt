@@ -46,8 +46,7 @@ val LocalAppFonts = staticCompositionLocalOf<AppFonts> { error("NectarlinkTheme 
 internal fun typography(fonts: AppFonts, graphite: Boolean): Typography {
     val base = Typography()
     fun TextStyle.text(weight: Int) = copy(fontFamily = fonts.sans, fontWeight = FontWeight(weight))
-    fun TextStyle.heading() =
-        if (graphite) copy(fontFamily = fonts.serif, fontWeight = FontWeight.Normal) else text(650)
+    fun TextStyle.heading() = text(600)
     return base.copy(
         displayLarge = base.displayLarge.heading(),
         displayMedium = base.displayMedium.heading(),

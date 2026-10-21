@@ -56,7 +56,7 @@
     <string name="settings_language_more">More</string>
     <string name="settings_dynamic_color">Colors from wallpaper</string>
     <string name="settings_dynamic_color_hint">Use your wallpaper\'s colors.</string>
-    <string name="settings_devices">PCs</string>
+    <string name="settings_devices">Devices</string>
     <string name="settings_about">About</string>
     <string name="settings_notifications">Notifications</string>
     <string name="notifications_title">Show notifications on your PC</string>
@@ -300,13 +300,13 @@
     <string name="channel_connection">Connection</string>
     <string name="channel_ringing">Find my phone</string>
     <string name="notification_connected_to">Connected to %1$s</string>
-    <string name="notification_connected_many">Connected to %1$d PCs</string>
+    <string name="notification_connected_many">Connected to %1$d devices</string>
     <plurals name="notification_connected_pcs">
-        <item quantity="one">Connected to %1$d PC</item>
-        <item quantity="other">Connected to %1$d PCs</item>
+        <item quantity="one">Connected to %1$d device</item>
+        <item quantity="other">Connected to %1$d devices</item>
     </plurals>
-    <string name="notification_waiting">Waiting for your PC</string>
-    <string name="notification_not_paired">Not paired with a PC yet</string>
+    <string name="notification_waiting">Waiting for devices</string>
+    <string name="notification_not_paired">Not paired with any device yet</string>
     <plurals name="transfer_files">
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d files</item>
@@ -1303,7 +1303,7 @@
     <string name="update_ready_title">NectarLink %1$s is ready</string>
     <string name="update_ready_text">Tap to install the update.</string>
     <string name="update_done_title">NectarLink is updated to %1$s</string>
-    <string name="update_done_text">Tap to open it. Your PCs reconnect on their own.</string>
+    <string name="update_done_text">Tap to open it. Your devices reconnect on their own.</string>
     <string name="update_auto_title">Install updates automatically</string>
     <string name="update_auto_text">New versions from GitHub install in the background.</string>
 

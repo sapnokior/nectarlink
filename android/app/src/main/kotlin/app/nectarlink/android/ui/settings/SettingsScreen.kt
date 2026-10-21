@@ -204,9 +204,6 @@ fun SettingsScreen(
                         stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.headlineMedium,
                     )
-                    FilledTonalButton(onClick = onOpenFeaturesGuide) {
-                        Text(stringResource(R.string.guide_title))
-                    }
                 }
                 Row(
                     modifier = Modifier
@@ -583,13 +580,11 @@ fun SettingsScreen(
                 ) {
                     ControlAccess(state.inputAccess)
                     SettingRowDivider()
-                    ElevatedAccess()
-                    SettingRowDivider()
                     BankingPauseAccess()
                     SettingRowDivider()
                     DndAccess(state.dndAccess)
                     SettingRowDivider()
-                    WriteSettingsAccess(state.writeSettingsAccess || state.elevated)
+                    WriteSettingsAccess(state.writeSettingsAccess)
                 }
             }
 
@@ -599,12 +594,6 @@ fun SettingsScreen(
                     highlighted = pulsingSectionKey == "background",
                 ) {
                     BackgroundBatteryAccess(state.backgroundUnrestricted)
-                    SettingRowDivider()
-                    CompanionWakeAccess(
-                        associated = state.companionAssociated,
-                        devices = state.devices,
-                        onAccessChanged = onAccessChanged,
-                    )
                 }
             }
 
@@ -669,34 +658,7 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_clipboard_title),
                     highlighted = pulsingSectionKey == "clipboard",
                 ) {
-                    val context = LocalContext.current
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(stringResource(R.string.settings_background_clipboard_title), style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                if (state.elevated) {
-                                    stringResource(R.string.settings_wireless_debugging_active)
-                                } else {
-                                    stringResource(R.string.settings_wireless_debugging_hint)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (state.elevated) {
-                            OutlinedButton(onClick = { openDeveloperOptionsSettings(context) }) {
-                                Text(stringResource(R.string.action_manage))
-                            }
-                        } else {
-                            Button(onClick = {
-                                PairingNotification.show(context)
-                                openDeveloperOptionsSettings(context)
-                            }) {
-                                Text(stringResource(R.string.action_allow))
-                            }
-                        }
-                    }
-                    SettingRowDivider()
+
                     val suggestionsTitle = stringResource(R.string.settings_clipboard_suggestions)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.weight(1f).padding(end = 12.dp)) {
@@ -741,30 +703,7 @@ fun SettingsScreen(
                 }
             }
 
-            item(key = "localsend", contentType = "section") {
-                Section(
-                    title = stringResource(R.string.settings_localsend_title),
-                    highlighted = pulsingSectionKey == "localsend",
-                ) {
-                    val localsendTitle = stringResource(R.string.settings_localsend_title)
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(localsendTitle, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                stringResource(R.string.settings_localsend_subtitle),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(
-                            checked = state.localsendEnabled,
-                            onCheckedChange = onToggleLocalSend,
-                            colors = app.nectarlink.android.ui.theme.nectarSwitchColors(),
-                            modifier = Modifier.semantics { contentDescription = localsendTitle },
-                        )
-                    }
-                }
-            }
+
 
             item(key = "data_storage", contentType = "section") {
                 Section(
@@ -909,42 +848,7 @@ fun SettingsScreen(
             }
         }
 
-        if (showFeatures) {
-            item(key = "about", contentType = "section") {
-                Section(stringResource(R.string.settings_about)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(stringResource(R.string.guide_title), style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                stringResource(R.string.settings_guide_card_body),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        FilledTonalButton(onClick = onOpenFeaturesGuide) {
-                            Text(stringResource(R.string.clip_action_open))
-                        }
-                    }
-                    SettingRowDivider()
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(stringResource(R.string.guide_open_walkthrough), style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                stringResource(R.string.settings_walkthrough_body),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        OutlinedButton(onClick = onOpenWalkthrough) {
-                            Text(stringResource(R.string.clip_action_open))
-                        }
-                    }
-                    SettingRowDivider()
-                    Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyMedium)
-                    CheckForUpdates(updater)
-                }
-            }
-        }
+
     }
 
     confirmUnpair?.let { device ->

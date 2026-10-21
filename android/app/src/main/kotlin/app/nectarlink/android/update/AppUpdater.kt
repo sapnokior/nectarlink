@@ -57,6 +57,14 @@ class AppUpdater(context: Context) {
     private val context = context.applicationContext
     internal val prefs = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
 
+    init {
+        runCatching {
+            val manager = this.context.getSystemService(NotificationManager::class.java)
+            manager?.cancel(READY_ID)
+            manager?.cancel(UPDATED_ID)
+        }
+    }
+
     /** Installs outlive the screen that started them. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val busy = Mutex()
@@ -421,50 +429,22 @@ class AppUpdater(context: Context) {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    /** "NectarLink 0.2.0 is ready", opening Android's install prompt when tapped. */
+    /** Update notification disabled per user request. */
     internal fun notifyReady(confirm: Intent) {
-        if (!mayNotify()) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        channel(manager)
-        val version = (_state.value as? State.Installing)?.update?.version.orEmpty()
-        val tap = PendingIntent.getActivity(context, READY_ID, confirm, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.update_ready_title, version))
-            .setContentText(context.getString(R.string.update_ready_text))
-            .setContentIntent(tap)
-            .setAutoCancel(true)
-            .build()
-        manager.notify(READY_ID, notification)
+        manager?.cancel(READY_ID)
+        manager?.cancel(UPDATED_ID)
     }
 
     /**
      * The new version's first run after an update (StartupReceiver): clears
-     * the download and says so. Android doesn't let an app open its own window
-     * from the background, so the notification opens it.
+     * the download and cancels any residual notification.
      */
     fun onUpdated() {
         runCatching { File(context.cacheDir, UPDATES_DIR).deleteRecursively() }
-        if (!mayNotify()) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        channel(manager)
-        manager.cancel(READY_ID)
-        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
-        val tap = PendingIntent.getActivity(
-            context,
-            UPDATED_ID,
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.update_done_title, BuildConfig.VERSION_NAME))
-            .setContentText(context.getString(R.string.update_done_text))
-            .setContentIntent(tap)
-            .setAutoCancel(true)
-            .setOnlyAlertOnce(true)
-            .build()
-        manager.notify(UPDATED_ID, notification)
+        manager?.cancel(READY_ID)
+        manager?.cancel(UPDATED_ID)
     }
 
     /** Android didn't install it. */

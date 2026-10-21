@@ -31,31 +31,10 @@ object PairingNotification {
     private const val KEY_CODE = "code"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** Asks for the code; false if notifications are off for the app. */
-    fun show(context: Context, text: String = context.getString(R.string.elevated_pair_text)): Boolean {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            return false
-        }
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL, context.getString(R.string.channel_elevated), NotificationManager.IMPORTANCE_HIGH),
-        )
-        val reply = PendingIntent.getBroadcast(
-            context, ID, Intent(context, Receiver::class.java),
-            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val action = NotificationCompat.Action.Builder(0, context.getString(R.string.elevated_pair_action), reply)
-            .addRemoteInput(RemoteInput.Builder(KEY_CODE).setLabel(context.getString(R.string.elevated_pair_hint)).build())
-            .build()
-        val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.elevated_pair_title))
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .addAction(action)
-            .setOnlyAlertOnce(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-        return runCatching { NotificationManagerCompat.from(context).notify(ID, notification) }.isSuccess
+    /** Pairing notification disabled per user request (no ADB / Wireless debugging). */
+    fun show(context: Context, text: String = ""): Boolean {
+        dismiss(context)
+        return false
     }
 
     fun dismiss(context: Context) = NotificationManagerCompat.from(context).cancel(ID)

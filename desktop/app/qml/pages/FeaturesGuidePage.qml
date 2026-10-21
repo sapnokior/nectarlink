@@ -574,55 +574,6 @@ Item {
                 color: Theme.surfaceContentVariant
                 wrapMode: Text.WordWrap
             }
-
-            Rectangle {
-                implicitWidth: fullGuideRow.implicitWidth + 16
-                implicitHeight: 32
-                radius: Theme.radiusSm
-                color: fullGuideHover.hovered
-                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
-                    : "transparent"
-
-                HoverHandler {
-                    id: fullGuideHover
-                    cursorShape: Qt.PointingHandCursor
-                }
-
-                TapHandler {
-                    onTapped: guide.openDoc("overview")
-                }
-
-                Accessible.role: Accessible.Button
-                Accessible.name: "Read the full guide"
-
-                RowLayout {
-                    id: fullGuideRow
-                    anchors.centerIn: parent
-                    spacing: 6
-
-                    Icon {
-                        path: Icons.book
-                        width: 15
-                        height: 15
-                        color: Theme.primary
-                    }
-
-                    Txt {
-                        text: qsTr("Read the full guide ›")
-                        role: "label"
-                        color: Theme.primary
-                    }
-                }
-            }
-
-            Button {
-                text: qsTr("Setup walkthrough")
-                iconPath: Icons.compass
-                variant: "tonal"
-                size: "sm"
-                Accessible.name: "Open the 7-step setup walkthrough"
-                onClicked: guide.restartWalkthroughRequested()
-            }
         }
 
         // C.2: Single calm banner when no phone is connected

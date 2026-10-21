@@ -150,6 +150,8 @@ pub mod qobject {
         #[qproperty(QString, guide_doc_body)]
         /// Control target ID highlighted by `"Show me"` in the Features guide (`""` when none).
         #[qproperty(QString, highlight_target)]
+        #[qproperty(QString, pc_battery_status)]
+        #[qproperty(bool, pc_battery_charging)]
         type AppController = super::AppControllerRust;
 
         /// Enables or disables LocalSend LAN discovery and file sharing.
@@ -475,6 +477,8 @@ pub struct AppControllerRust {
     guide_doc_title: QString,
     guide_doc_body: QString,
     highlight_target: QString,
+    pc_battery_status: QString,
+    pc_battery_charging: bool,
     last_online_count: usize,
     last_tray_tooltip: String,
     tray: Option<tray::Tray>,
@@ -1050,6 +1054,16 @@ fn refresh_wallpaper_colors(qt: CxxQtThread<qobject::AppController>) {
     }
 }
 
+pub fn update_pc_battery_ui(status: &str, charging: bool) {
+    if let Some(Some(qt)) = CONTROLLER.get().map(|m| m.lock().unwrap_or_else(|e| e.into_inner()).clone()) {
+        let status = QString::from(status);
+        let _ = qt.queue(move |mut obj| {
+            obj.as_mut().set_pc_battery_status(status);
+            obj.as_mut().set_pc_battery_charging(charging);
+        });
+    }
+}
+
 fn phone_colors_json(devices: &[crate::state::DeviceView]) -> String {
     // One entry per name. When a phone was paired again (reinstalled, reset), an
     // old entry can share its name: the connected, most recently paired one
@@ -1357,6 +1371,13 @@ impl qobject::AppController {
         self.as_mut().set_system_dark(win::system_dark());
         self.as_mut().set_reduce_motion(win::reduce_motion());
         self.as_mut().set_power_saver(win::power_saver());
+        if let Some(bat) = win::local_battery() {
+            self.as_mut().set_pc_battery_status(QString::from(&bat.status_text));
+            self.as_mut().set_pc_battery_charging(bat.charging);
+        } else {
+            self.as_mut().set_pc_battery_status(QString::default());
+            self.as_mut().set_pc_battery_charging(false);
+        }
         refresh_wallpaper_colors(self.qt_thread());
         self.refresh_toasts_enabled();
     }

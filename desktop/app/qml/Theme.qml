@@ -234,7 +234,7 @@ QtObject {
     // ---- Type ----
     // Bundled with the app (assets/fonts).
     readonly property string fontUi: "Figtree"
-    readonly property string fontDisplay: graphite ? "Instrument Serif" : "Figtree"
+    readonly property string fontDisplay: "Figtree"
     readonly property string fontMono: "Space Mono"
     readonly property var typography: Tokens.data.typography
     readonly property var labelStyle: graphite ? Tokens.data.themes.graphite.label

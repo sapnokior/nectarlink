@@ -1300,6 +1300,59 @@ pub struct CallLogEntry {
     pub photo: Option<Vec<u8>>,
 }
 
+impl From<core::CallLogEntry> for CallLogEntry {
+    fn from(e: core::CallLogEntry) -> Self {
+        CallLogEntry {
+            id: e.id,
+            number: e.number,
+            name: e.name,
+            direction: e.direction,
+            date: e.date,
+            duration: e.duration,
+            photo: e.photo,
+        }
+    }
+}
+
+impl From<core::SmsThread> for SmsThread {
+    fn from(t: core::SmsThread) -> Self {
+        SmsThread {
+            id: t.id,
+            addresses: t.addresses,
+            names: t.names,
+            snippet: t.snippet,
+            date: t.date,
+            unread: t.unread,
+            photo: t.photo,
+        }
+    }
+}
+
+impl From<core::SmsPart> for SmsPart {
+    fn from(p: core::SmsPart) -> Self {
+        SmsPart {
+            id: p.id,
+            mime: p.mime,
+            size: p.size,
+        }
+    }
+}
+
+impl From<core::SmsMessage> for SmsMessage {
+    fn from(m: core::SmsMessage) -> Self {
+        SmsMessage {
+            id: m.id,
+            thread: m.thread,
+            address: m.address,
+            body: m.body,
+            date: m.date,
+            outgoing: m.outgoing,
+            status: m.status,
+            parts: m.parts.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 /// One phone number on a contact (docs/protocol/contacts.md).
 #[derive(Clone, PartialEq, Eq, uniffi::Record)]
 pub struct ContactNumber {
@@ -4315,6 +4368,55 @@ impl NectarlinkNode {
         };
         let node = self.node.clone();
         self.block_on_rt(async move { Ok(node.wake_via_relay(&peer_id, mac_bytes, bcast).await?) })
+    }
+
+    /// A paired phone's recent calls before `before` (Unix ms; latest when `None`), newest first.
+    pub async fn peer_call_log(
+        &self,
+        peer: String,
+        before: Option<i64>,
+        limit: u32,
+    ) -> Result<Vec<CallLogEntry>> {
+        let peer_id = parse_id(&peer)?;
+        let node = self.node.clone();
+        let entries = self.run(async move { Ok::<_, NectarlinkError>(node.call_log(peer_id, before, limit).await?) }).await?;
+        Ok(entries.into_iter().map(Into::into).collect())
+    }
+
+    /// Asks a paired phone to place a call to `number`.
+    pub async fn peer_dial(&self, peer: String, number: String) -> Result<()> {
+        let peer_id = parse_id(&peer)?;
+        let node = self.node.clone();
+        self.run(async move { Ok::<_, NectarlinkError>(node.call_dial(peer_id, number).await?) }).await
+    }
+
+    /// A paired phone's latest conversations, newest first.
+    pub async fn peer_sms_threads(&self, peer: String, limit: u32) -> Result<Vec<SmsThread>> {
+        let peer_id = parse_id(&peer)?;
+        let node = self.node.clone();
+        let threads = self.run(async move { Ok::<_, NectarlinkError>(node.sms_threads(peer_id, limit).await?) }).await?;
+        Ok(threads.into_iter().map(Into::into).collect())
+    }
+
+    /// A conversation's messages before `before` (Unix ms; latest when `None`), newest first.
+    pub async fn peer_sms_messages(
+        &self,
+        peer: String,
+        thread: String,
+        before: Option<i64>,
+        limit: u32,
+    ) -> Result<Vec<SmsMessage>> {
+        let peer_id = parse_id(&peer)?;
+        let node = self.node.clone();
+        let messages = self.run(async move { Ok::<_, NectarlinkError>(node.sms_messages(peer_id, thread, before, limit).await?) }).await?;
+        Ok(messages.into_iter().map(Into::into).collect())
+    }
+
+    /// Sends a text through a paired phone.
+    pub async fn peer_sms_send(&self, peer: String, to: Vec<String>, body: String) -> Result<()> {
+        let peer_id = parse_id(&peer)?;
+        let node = self.node.clone();
+        self.run(async move { Ok::<_, NectarlinkError>(node.sms_send(peer_id, to, body).await?) }).await
     }
 }
 

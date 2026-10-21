@@ -91,6 +91,9 @@
     <!-- Texts, read and sent from paired PCs (asked for in the app). -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission
+        android:name="android.permission.WRITE_SMS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Photos, screenshots and videos, shown on paired PCs (asked for in the app). -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />

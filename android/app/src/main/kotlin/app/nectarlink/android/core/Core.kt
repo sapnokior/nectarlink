@@ -38,6 +38,7 @@ import app.nectarlink.android.storage.PhoneStorage
 import app.nectarlink.android.toggles.PhoneToggles
 import app.nectarlink.android.webcam.WebcamRequests
 import app.nectarlink.android.webcam.WebcamService
+import app.nectarlink.core.CallLogEntry
 import app.nectarlink.core.Event
 import app.nectarlink.core.EventListener
 import app.nectarlink.core.FileToSend
@@ -51,6 +52,8 @@ import app.nectarlink.core.PairingFailure
 import app.nectarlink.core.PowerLevel
 import app.nectarlink.core.RecordingMarker
 import app.nectarlink.core.RemoteStorageEntry
+import app.nectarlink.core.SmsMessage
+import app.nectarlink.core.SmsThread
 import app.nectarlink.core.TimelineEntry
 import app.nectarlink.core.TimelineKind
 import app.nectarlink.core.TimelinePage
@@ -243,6 +246,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
     private val battery = BatteryMonitor(this.context) { battery ->
         lastBattery = battery
         pushBatteryAndSignal()
+        _state.update { it.copy(localBattery = battery) }
     }
     private val signal = SignalMonitor(this.context) { snapshot ->
         val hadWifi = lastSignal.wifiBars != null
@@ -1056,6 +1060,40 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
     fun sendFiles(pcId: String, uris: List<Uri>, handoff: Boolean = false) {
         scope.launch(Dispatchers.IO) {
             send(pcId, OutgoingFiles.open(context, uris), handoff)
+        }
+    }
+
+    /** Recent calls from a paired peer phone. */
+    suspend fun peerCallLog(peerId: String, before: Long? = null, limit: Int = 50): List<CallLogEntry> {
+        startJob?.join()
+        return runCatching { node?.peerCallLog(peerId, before, limit.toUInt()) }.getOrNull() ?: emptyList()
+    }
+
+    /** Places a phone call through a paired peer phone. */
+    suspend fun peerDial(peerId: String, number: String) {
+        startJob?.join()
+        runCatching { node?.peerDial(peerId, number) }.onFailure {
+            _messages.tryEmit("Failed to place call via peer: ${it.message}")
+        }
+    }
+
+    /** SMS conversation threads from a paired peer phone. */
+    suspend fun peerSmsThreads(peerId: String, limit: Int = 50): List<SmsThread> {
+        startJob?.join()
+        return runCatching { node?.peerSmsThreads(peerId, limit.toUInt()) }.getOrNull() ?: emptyList()
+    }
+
+    /** SMS messages in a conversation from a paired peer phone. */
+    suspend fun peerSmsMessages(peerId: String, thread: String, before: Long? = null, limit: Int = 50): List<SmsMessage> {
+        startJob?.join()
+        return runCatching { node?.peerSmsMessages(peerId, thread, before, limit.toUInt()) }.getOrNull() ?: emptyList()
+    }
+
+    /** Sends a text message through a paired peer phone. */
+    suspend fun peerSmsSend(peerId: String, to: List<String>, body: String) {
+        startJob?.join()
+        runCatching { node?.peerSmsSend(peerId, to, body) }.onFailure {
+            _messages.tryEmit("Failed to send text via peer: ${it.message}")
         }
     }
 

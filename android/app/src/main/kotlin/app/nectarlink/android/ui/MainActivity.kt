@@ -317,7 +317,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab { Home, Settings }
+private enum class Tab { Home, Calls, Messages, Settings }
 
 private sealed interface ScreenRoute {
     data object Starting : ScreenRoute
@@ -354,6 +354,7 @@ private fun App(
     onActiveRemoteChanged: (String?) -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
+    var insideChatThread by rememberSaveable { mutableStateOf(false) }
     var pairing by rememberSaveable { mutableStateOf(false) }
     var manualWalkthroughOpen by rememberSaveable { mutableStateOf(false) }
     var featuresGuideOpen by rememberSaveable { mutableStateOf(false) }
@@ -756,15 +757,21 @@ private fun App(
                     containerColor = androidx.compose.ui.graphics.Color.Transparent,
                     snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
-                        FloatingBottomPillDock(
-                            selectedTab = tab,
-                            onSelectTab = { tab = it },
-                            onlineCount = onlineCount,
-                            pairedCount = pairedCount,
-                            isGlass = isGlass,
-                            reducedMotion = reducedMotion,
-                            backdrop = glassBackdrop,
-                        )
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = tab != Tab.Messages || !insideChatThread,
+                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it },
+                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutVertically { it },
+                        ) {
+                            FloatingBottomPillDock(
+                                selectedTab = tab,
+                                onSelectTab = { tab = it },
+                                onlineCount = onlineCount,
+                                pairedCount = pairedCount,
+                                isGlass = isGlass,
+                                reducedMotion = reducedMotion,
+                                backdrop = glassBackdrop,
+                            )
+                        }
                     },
                 ) { padding ->
                     val context = LocalContext.current
@@ -924,6 +931,21 @@ private fun App(
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
+                            Tab.Calls -> saveableStateHolder.SaveableStateProvider("tab_calls") {
+                                app.nectarlink.android.ui.calls.CallsScreen(
+                                    state = state,
+                                    core = core,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            Tab.Messages -> saveableStateHolder.SaveableStateProvider("tab_messages") {
+                                app.nectarlink.android.ui.messages.MessagesScreen(
+                                    state = state,
+                                    core = core,
+                                    onInsideThreadChanged = { insideChatThread = it },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                             Tab.Settings -> saveableStateHolder.SaveableStateProvider("tab_settings") {
                                 SettingsScreen(
                                     state = state,
@@ -1032,11 +1054,23 @@ private fun FloatingBottomPillDock(
                 onClick = { onSelectTab(Tab.Home) },
                 iconRes = R.drawable.ic_home,
                 label = stringResource(R.string.home_title),
-                statusDotColor = when {
-                    onlineCount > 0 -> scheme.primary
-                    pairedCount > 0 -> scheme.outline
-                    else -> null
-                },
+                statusDotColor = null,
+                reducedMotion = reducedMotion,
+            )
+            FloatingDockTabPill(
+                selected = selectedTab == Tab.Calls,
+                onClick = { onSelectTab(Tab.Calls) },
+                iconRes = R.drawable.ic_call,
+                label = "Calls",
+                statusDotColor = null,
+                reducedMotion = reducedMotion,
+            )
+            FloatingDockTabPill(
+                selected = selectedTab == Tab.Messages,
+                onClick = { onSelectTab(Tab.Messages) },
+                iconRes = R.drawable.ic_message,
+                label = "Messages",
+                statusDotColor = null,
                 reducedMotion = reducedMotion,
             )
             FloatingDockTabPill(
@@ -1085,7 +1119,7 @@ private fun FloatingDockTabPill(
         label = "pill_bg",
     )
     val contentColor = if (selected) scheme.onPrimaryContainer else scheme.onSurfaceVariant
-    androidx.compose.foundation.layout.Row(
+    androidx.compose.foundation.layout.Box(
         modifier = Modifier
             .semantics {
                 role = Role.Tab
@@ -1111,28 +1145,18 @@ private fun FloatingDockTabPill(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 18.dp, vertical = 9.dp),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = contentColor,
-            modifier = Modifier.size(18.dp),
-        )
-        Text(
-            text = label,
-            color = contentColor,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        if (statusDotColor != null) {
-            androidx.compose.foundation.layout.Spacer(
-                modifier = Modifier
-                    .size(6.dp)
-                    .drawBehind {
-                        drawCircle(color = statusDotColor)
-                    },
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(22.dp),
             )
         }
     }
