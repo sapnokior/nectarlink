@@ -1083,7 +1083,7 @@ Item {
                                     if (home.charging) {
                                         if (home.battery >= 100) return qsTr("Phone: 100% · Fully charged")
                                         const eta = page.formatChargeEta(home.batteryFullIn)
-                                        return eta.length > 0 ? qsTr("Phone: %1% · %2 to full").arg(home.battery).arg(eta) : qsTr("Phone: %1% · Charging").arg(home.battery)
+                                        return eta.length > 0 ? qsTr("Phone: %1% · %2").arg(home.battery).arg(eta) : qsTr("Phone: %1% · Charging").arg(home.battery)
                                     }
                                     const eta = page.formatDrainEta(home.batteryPlugged, home.battery)
                                     return eta.length > 0 ? qsTr("Phone: %1% · %2").arg(home.battery).arg(eta) : qsTr("Phone: %1%").arg(home.battery)
