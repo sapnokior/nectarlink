@@ -100,7 +100,7 @@ Item {
         if (mins <= 0) return ""
         const h = Math.floor(mins / 60)
         const m = mins % 60
-        return h > 0 ? (m > 0 ? qsTr("~%1h %2m left").arg(h).arg(m) : qsTr("~%1h left").arg(h)) : qsTr("~%1m left").arg(m)
+        return h > 0 ? (m > 0 ? qsTr("~%1h %2m").arg(h).arg(m) : qsTr("~%1h").arg(h)) : qsTr("~%1m").arg(m)
     }
 
     function roundedRectSvg(x, y, w, h, tl, tr, br, bl) {
@@ -1086,7 +1086,7 @@ Item {
                                         return eta.length > 0 ? qsTr("Phone: %1% · %2 to full").arg(home.battery).arg(eta) : qsTr("Phone: %1% · Charging").arg(home.battery)
                                     }
                                     const eta = page.formatDrainEta(home.batteryPlugged, home.battery)
-                                    return eta.length > 0 ? qsTr("Phone: %1% · %2 to full drain").arg(home.battery).arg(eta) : qsTr("Phone: %1%").arg(home.battery)
+                                    return eta.length > 0 ? qsTr("Phone: %1% · %2").arg(home.battery).arg(eta) : qsTr("Phone: %1%").arg(home.battery)
                                 }
                             }
                             Chip {

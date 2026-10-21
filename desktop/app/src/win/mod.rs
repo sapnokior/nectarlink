@@ -178,11 +178,11 @@ pub fn local_battery() -> Option<LocalBatteryInfo> {
         let h = drain_mins / 60;
         let m = drain_mins % 60;
         let eta = if h > 0 && m > 0 {
-            format!("~{h}h {m}m to full drain")
+            format!("~{h}h {m}m")
         } else if h > 0 {
-            format!("~{h}h to full drain")
+            format!("~{h}h")
         } else {
-            format!("~{m}m to full drain")
+            format!("~{m}m")
         };
         Some(LocalBatteryInfo {
             level,

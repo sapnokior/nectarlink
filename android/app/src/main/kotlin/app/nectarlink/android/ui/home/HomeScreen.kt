@@ -1239,9 +1239,9 @@ private fun formatBatteryInfo(battery: app.nectarlink.core.Battery): String {
             ?: (level * 5.5).toInt().coerceAtLeast(1)
         val h = drainMins / 60
         val m = drainMins % 60
-        val eta = if (h > 0 && m > 0) "~${h}h ${m}m to full drain"
-        else if (h > 0) "~${h}h to full drain"
-        else "~${m}m to full drain"
+        val eta = if (h > 0 && m > 0) "~${h}h ${m}m"
+        else if (h > 0) "~${h}h"
+        else "~${m}m"
         return "$level% · $eta"
     }
 }
