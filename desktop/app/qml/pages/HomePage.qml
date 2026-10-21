@@ -25,15 +25,7 @@ Item {
     property bool currentCanReceive: false
     signal pairRequested
 
-    readonly property var localsendPeers: {
-        if (!AppController.localsendEnabled || !AppController.localsendPeersJson || AppController.localsendPeersJson.length === 0)
-            return []
-        try {
-            return JSON.parse(AppController.localsendPeersJson)
-        } catch (e) {
-            return []
-        }
-    }
+
 
     readonly property var sendQueueItems: {
         if (!TransferList.sendQueue || TransferList.sendQueue.length === 0)
@@ -55,16 +47,7 @@ Item {
         return units[unit].arg(value < 10 ? value.toFixed(1) : Math.round(value))
     }
 
-    FileDialog {
-        id: localsendFilePicker
-        property string targetDeviceId: ""
-        title: qsTr("Send files via LocalSend")
-        fileMode: FileDialog.OpenFiles
-        onAccepted: {
-            if (targetDeviceId.length > 0 && selectedFiles.length > 0)
-                TransferList.send(targetDeviceId, selectedFiles.map(url => url.toString()))
-        }
-    }
+
 
     visible: active
     readonly property bool resizing: Window.window && Window.window.resizing ? true : false
@@ -484,10 +467,7 @@ Item {
                 }
             }
 
-            LocalSendCard {
-                width: column.width
-                visible: DeviceList.count === 0 && AppController.localsendEnabled && page.localsendPeers.length > 0
-            }
+
         }
     }
 
@@ -1568,11 +1548,7 @@ Item {
                 }
             }
 
-            // ---- LocalSend nearby ----
-            LocalSendCard {
-                width: parent.width
-                visible: AppController.localsendEnabled && page.localsendPeers.length > 0
-            }
+
 
             // ---- Notifications ----
             Card {
@@ -3333,119 +3309,7 @@ Item {
         }
     }
 
-    // Nearby devices running LocalSend on the local Wi-Fi network.
-    component LocalSendCard: Card {
-        id: lsCard
-        Column {
-            width: parent.width
-            spacing: 10
-            Item {
-                width: parent.width
-                height: Math.max(lsHeaderRow.height, lsRefreshBtn.height)
-                Row {
-                    id: lsHeaderRow
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 8
-                    StatusDot {
-                        anchors.verticalCenter: parent.verticalCenter
-                        online: AppController.localsendReceiving
-                    }
-                    Txt {
-                        anchors.verticalCenter: parent.verticalCenter
-                        role: "label"
-                        muted: true
-                        text: page.localsendPeers.length > 0
-                            ? qsTr("LocalSend nearby · %1").arg(page.localsendPeers.length)
-                            : qsTr("LocalSend nearby")
-                    }
-                }
-                Button {
-                    id: lsRefreshBtn
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    variant: "text"
-                    size: "sm"
-                    text: qsTr("Refresh")
-                    onClicked: AppController.refreshLocalsend()
-                }
-            }
-            Txt {
-                width: parent.width
-                visible: page.localsendPeers.length === 0
-                role: "bodySmall"
-                muted: true
-                wrapMode: Text.WordWrap
-                text: AppController.localsendReceiving
-                    ? qsTr("Listening for LocalSend devices on your Wi‑Fi network.")
-                    : qsTr("LocalSend port 53317 is busy on this PC (another LocalSend app may be running).")
-            }
-            Repeater {
-                model: page.localsendPeers
-                delegate: Item {
-                    id: peerRow
-                    required property var modelData
-                    required property int index
-                    width: parent.width
-                    height: Math.max(36, peerInfoCol.height + 8)
 
-                    Row {
-                        anchors.fill: parent
-                        spacing: 12
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 32; height: 32
-                            radius: Theme.graphite ? Theme.radiusSm : 16
-                            color: Theme.graphite ? "transparent" : Theme.secondaryContainer
-                            border.width: Theme.graphite ? 1 : 0
-                            border.color: Theme.outlineVariant
-                            Icon {
-                                anchors.centerIn: parent
-                                width: 18; height: 18
-                                path: peerRow.modelData.deviceType === "mobile" || peerRow.modelData.deviceType === "tablet"
-                                    ? Icons.phone : Icons.laptop
-                                color: Theme.graphite ? Theme.surfaceContent : Theme.secondaryContainerContent
-                            }
-                        }
-                        Column {
-                            id: peerInfoCol
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - 32 - sendPeerBtn.width - 24
-                            spacing: 2
-                            Txt {
-                                width: parent.width
-                                role: "title"
-                                size: 14
-                                elide: Text.ElideRight
-                                text: peerRow.modelData.alias || qsTr("Nearby device")
-                            }
-                            Txt {
-                                width: parent.width
-                                role: "bodySmall"
-                                muted: true
-                                elide: Text.ElideRight
-                                text: [peerRow.modelData.deviceModel, peerRow.modelData.ip]
-                                    .filter(s => s && s.length > 0)
-                                    .join(" · ")
-                            }
-                        }
-                         Button {
-                            id: sendPeerBtn
-                            anchors.verticalCenter: parent.verticalCenter
-                            variant: "tonal"
-                            size: "sm"
-                            iconPath: Icons.send
-                            text: qsTr("Send files")
-                            onClicked: {
-                                localsendFilePicker.targetDeviceId = peerRow.modelData.id
-                                localsendFilePicker.open()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // Inline lightbox preview for notification images.
     Sheet {

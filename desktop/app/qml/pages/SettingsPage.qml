@@ -2093,18 +2093,7 @@ Item {
                             }
                         }
 
-                        Divider { width: parent.width }
-                        ListRow {
-                            width: parent.width
-                            iconPath: Icons.globe
-                            title: qsTr("LocalSend on local network")
-                            description: qsTr("Share with nearby LocalSend devices without pairing.")
-                            Toggle {
-                                label: qsTr("LocalSend on local network")
-                                checked: AppController.localsendEnabled
-                                onToggled: (on) => AppController.toggleLocalsend(on)
-                            }
-                        }
+
 
                         Divider { width: parent.width }
                         ListRow {
