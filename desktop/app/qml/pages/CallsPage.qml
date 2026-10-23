@@ -996,6 +996,13 @@ Item {
                 spacing: 2
                 IconButton {
                     width: 34; height: 34
+                    tonal: callHover.hovered
+                    iconPath: Icons.copy
+                    label: qsTr("Copy %1").arg(row.entry.number)
+                    onClicked: AppController.copyText(row.entry.number)
+                }
+                IconButton {
+                    width: 34; height: 34
                     iconPath: Icons.messages
                     label: qsTr("Text %1").arg(row.displayName)
                     onClicked: page.startText(row.entry.number, row.entry.name || "")
@@ -1014,7 +1021,10 @@ Item {
             }
 
             HoverHandler { id: callHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: row.selectCall() }
+            TapHandler {
+                onTapped: row.selectCall()
+                onLongPressed: AppController.copyText(row.entry.number)
+            }
         }
     }
 

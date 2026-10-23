@@ -577,6 +577,7 @@ impl Shared {
         self.store.toggles(peer).map(|t| t.get("away_mode").copied().unwrap_or(true)).unwrap_or(true)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn is_allowed_peer_ip(&self, ip: std::net::IpAddr) -> bool {
         if self.away_mode() {
             return true;
@@ -3760,7 +3761,7 @@ impl Ports {
 
 /// Binds the endpoint on `ports`, or any free ports.
 async fn bind_endpoint(
-    config: &NodeConfig,
+    _config: &NodeConfig,
     secret: iroh::SecretKey,
     ports: Option<Ports>,
 ) -> Result<Endpoint> {

@@ -282,7 +282,7 @@ fn run(icon: &Path, queue: mpsc::Receiver<Command>, handler: Handler) {
                 let t_grp = group(&device);
                 active_toasts.retain(|(_, grp), active| {
                     if grp == &t_grp {
-                        let _ = notifier.Hide(active);
+                        let _ = notifier.Hide(&*active);
                         false
                     } else {
                         true

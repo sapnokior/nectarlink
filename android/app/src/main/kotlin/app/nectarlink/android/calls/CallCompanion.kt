@@ -54,7 +54,11 @@ class CallCompanion : InCallService() {
 
     /** Only a call in progress has controls; ringing and ending report themselves. */
     private fun changed() {
-        number()?.let(PhoneCalls::companionNumber)
+        val num = number()
+        val nm = name()
+        if (num != null || nm != null) {
+            PhoneCalls.companionDetails(num, nm)
+        }
         val state = call?.stateNow()
         val connectTime = connectTimeMillis()
         if (state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING) {
@@ -71,13 +75,17 @@ class CallCompanion : InCallService() {
     private fun number(): String? =
         call?.details?.handle?.takeIf { it.scheme == "tel" }?.schemeSpecificPart?.takeIf { it.isNotBlank() }
 
-    /** The name Telecom found for the caller (Android 11+), when it has one. */
-    private fun name(): String? =
+    /** The name Telecom found for the caller (Android 11+), or caller ID, when it has one. */
+    private fun name(): String? {
+        val details = call?.details ?: return null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            call?.details?.contactDisplayName?.takeIf { it.isNotBlank() }
-        } else {
-            null
+            val contact = details.contactDisplayName?.trim()?.takeIf { it.isNotEmpty() }
+            if (contact != null) return contact
         }
+        val caller = details.callerDisplayName?.trim()?.takeIf { it.isNotEmpty() }
+        if (caller != null) return caller
+        return null
+    }
 
     private fun controls(): CallControls? {
         val call = call ?: return null

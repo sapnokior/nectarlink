@@ -4,6 +4,7 @@ package app.nectarlink.android.calls
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -65,6 +66,7 @@ internal class PhoneCalls(
         val id: String,
         val incoming: Boolean,
         var number: String?,
+        var name: String? = null,
         var answered: Boolean = false,
         /** Declined from a PC: not a missed call. */
         var declined: Boolean = false,
@@ -126,6 +128,7 @@ internal class PhoneCalls(
                         id = System.currentTimeMillis().toString(),
                         incoming = true,
                         number = number ?: CallCompanion.number(),
+                        name = CallCompanion.name(),
                     )
                     current = tracked
                     report(tracked, CallPhase.RINGING)
@@ -198,10 +201,23 @@ internal class PhoneCalls(
         since: Long?,
         missedCheck: Boolean,
     ) {
-        // Every report carries the name (an answered call kept it before
-        // only on the phone); looked up once per number while the call lasts.
-        val (found, photo) = number?.let { contacts.getOrPut(it) { contact(it) } } ?: (null to null)
-        val name = found ?: CallCompanion.name()
+        val companionName = CallCompanion.name()
+        val (found, photo) = number?.let { num ->
+            val cached = contacts[num]
+            if (cached != null && cached.first != null) {
+                cached
+            } else {
+                val lookedUp = contact(num)
+                if (lookedUp.first != null) {
+                    contacts[num] = lookedUp
+                }
+                lookedUp
+            }
+        } ?: (null to null)
+        val name = current?.name ?: found ?: companionName
+        if (current?.name == null && name != null) {
+            current?.name = name
+        }
         if (phase == CallPhase.ENDED) contacts.clear()
         val missed = missedCheck && wasMissed(id, number)
         val callObj = Call(
@@ -239,30 +255,78 @@ internal class PhoneCalls(
         }
     }
 
-    /** The companion learned the call's number, which Android's broadcast didn't have. */
-    private fun numberKnown(number: String) {
+    /** The companion learned the call's details (number, contact name from Telecom). */
+    internal fun companionDetails(number: String?, name: String?) {
         main.post {
-            val call = current?.takeIf { it.number == null } ?: return@post
-            call.number = number
-            report(call, if (call.answered) CallPhase.ACTIVE else CallPhase.RINGING)
+            val call = current ?: return@post
+            var changed = false
+            if (number != null && call.number == null) {
+                call.number = number
+                changed = true
+            }
+            if (name != null && (call.name == null || call.name != name)) {
+                call.name = name
+                changed = true
+            }
+            if (changed) {
+                report(call, if (call.answered) CallPhase.ACTIVE else CallPhase.RINGING)
+            }
         }
     }
 
     /** The contact's name and photo for a number, when allowed and known. */
     private fun contact(number: String): Pair<String?, ByteArray?> {
         if (!granted(context, Manifest.permission.READ_CONTACTS)) return null to null
+        val resolver = context.contentResolver
+        // 1. Try PhoneLookup with raw number
+        val raw = queryPhoneLookup(resolver, number)
+        if (raw.first != null) return raw
+
+        // 2. Try PhoneLookup with clean digits
+        val cleanNumber = number.filter { it.isDigit() || it == '+' }
+        if (cleanNumber.isNotEmpty() && cleanNumber != number) {
+            val clean = queryPhoneLookup(resolver, cleanNumber)
+            if (clean.first != null) return clean
+        }
+
+        // 3. Fallback: Search ContactsContract.CommonDataKinds.Phone with last 10 digits
+        val digits = number.filter { it.isDigit() }
+        if (digits.length >= 7) {
+            val lastDigits = digits.takeLast(10)
+            runCatching {
+                val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                val projection = arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
+                )
+                val selection = "${ContactsContract.CommonDataKinds.Phone.NUMBER} LIKE ?"
+                val selectionArgs = arrayOf("%$lastDigits")
+                resolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val name = cursor.getString(0)?.trim()?.takeIf { it.isNotEmpty() }
+                        val photo = cursor.getString(1)?.let { photoBytes(Uri.parse(it)) }
+                        if (name != null) return name to photo
+                    }
+                }
+            }
+        }
+        return null to null
+    }
+
+    private fun queryPhoneLookup(resolver: ContentResolver, number: String): Pair<String?, ByteArray?> {
         return runCatching {
             val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
-            val columns = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME, ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
-            context.contentResolver.query(uri, columns, null, null, null)?.use { cursor ->
+            val columns = arrayOf(
+                ContactsContract.PhoneLookup.DISPLAY_NAME,
+                ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI,
+            )
+            resolver.query(uri, columns, null, null, null)?.use { cursor ->
                 if (!cursor.moveToFirst()) return@use null to null
+                val name = cursor.getString(0)?.trim()?.takeIf { it.isNotEmpty() }
                 val photo = cursor.getString(1)?.let { photoBytes(Uri.parse(it)) }
-                cursor.getString(0) to photo
+                name to photo
             } ?: (null to null)
-        }.getOrElse {
-            Log.i(TAG, "no contact for a call", it)
-            null to null
-        }
+        }.getOrElse { null to null }
     }
 
     /** A JPEG of at most 64 KB. */
@@ -538,7 +602,12 @@ internal class PhoneCalls(
 
         /** The companion has the call's number (Telecom's handle). */
         internal fun companionNumber(number: String) {
-            instance?.numberKnown(number)
+            instance?.companionDetails(number, null)
+        }
+
+        /** The companion has the call's details (number, contact name from Telecom). */
+        internal fun companionDetails(number: String?, name: String?) {
+            instance?.companionDetails(number, name)
         }
         private const val MAX_PHOTO_BYTES = 64 * 1024
         private const val MAX_LOG_PAGE = 100

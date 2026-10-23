@@ -2,13 +2,16 @@
 package app.nectarlink.android.ui.calls
 
 import android.text.format.DateUtils
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,7 +54,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -348,12 +354,16 @@ fun CallsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GoogleDialerCallItem(
     entry: CallLogEntry,
     onDial: () -> Unit,
 ) {
-    val title = entry.name?.takeIf { it.isNotBlank() } ?: entry.number.ifEmpty { "Unknown Caller" }
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val hasName = !entry.name.isNullOrBlank()
+    val title = if (hasName) entry.name!!.trim() else entry.number.ifEmpty { "Unknown Caller" }
     val isMissed = entry.direction.equals("missed", ignoreCase = true) || entry.direction.equals("rejected", ignoreCase = true)
     val isIncoming = entry.direction.equals("incoming", ignoreCase = true)
     val isOutgoing = entry.direction.equals("outgoing", ignoreCase = true)
@@ -385,7 +395,15 @@ private fun GoogleDialerCallItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onDial),
+            .combinedClickable(
+                onClick = onDial,
+                onLongClick = {
+                    if (entry.number.isNotBlank()) {
+                        clipboardManager.setText(AnnotatedString(entry.number))
+                        Toast.makeText(context, "Copied ${entry.number}", Toast.LENGTH_SHORT).show()
+                    }
+                },
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
@@ -425,6 +443,15 @@ private fun GoogleDialerCallItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (hasName && entry.number.isNotBlank()) {
+                    Text(
+                        text = entry.number,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(Modifier.height(3.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
