@@ -69,6 +69,11 @@ internal class NotificationReader(private val context: Context) {
     private fun shouldMirror(sbn: StatusBarNotification, live: NotificationLive?): Boolean {
         val n = sbn.notification
         if (sbn.packageName == context.packageName) return false
+        val pkg = sbn.packageName.lowercase()
+        // Skip posting notifications from WhatsApp and Instagram to laptop
+        if (pkg == "com.whatsapp" || pkg == "com.whatsapp.w4b" || pkg.startsWith("com.whatsapp") || pkg.contains("instagram")) {
+            return false
+        }
         val alwaysSkipped = Notification.FLAG_GROUP_SUMMARY or Notification.FLAG_LOCAL_ONLY
         if (n.flags and alwaysSkipped != 0) return false
         // Media players get their own feature.
@@ -77,11 +82,27 @@ internal class NotificationReader(private val context: Context) {
         ) {
             return false
         }
+        // Phone calls get their own dedicated feature (calls protocol / PeerCallNotifications).
+        if (n.category == Notification.CATEGORY_CALL ||
+            n.category == Notification.CATEGORY_MISSED_CALL ||
+            isDialerPackage(sbn.packageName)
+        ) {
+            return false
+        }
         if (live != null) return true
         val ongoingSkipped = Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE
         return sbn.isClearable &&
             n.flags and ongoingSkipped == 0 &&
             n.category != Notification.CATEGORY_PROGRESS
+    }
+
+    private fun isDialerPackage(pkg: String): Boolean {
+        val p = pkg.lowercase()
+        return p.contains("dialer") ||
+            p.contains("telecom") ||
+            p.contains("incallui") ||
+            p.contains(".phone") ||
+            p == "com.android.phone"
     }
 
     private fun extractLive(n: Notification): NotificationLive? {

@@ -145,6 +145,8 @@ data class Device(
     val storageEnabled: Boolean = false,
     /** Whether this PC may ask for this phone's microphone (on by default). */
     val micEnabled: Boolean = true,
+    /** Whether staying connected over mobile data / relay is allowed for this peer (on by default). */
+    val awayModeEnabled: Boolean = true,
 ) {
     /** A paired phone or tablet rather than a PC. */
     val isAndroid: Boolean
@@ -261,6 +263,7 @@ data class CoreState(
         paired: List<PairedDevice>,
         storageAllowed: Set<String> = emptySet(),
         micOff: Set<String> = emptySet(),
+        awayOff: Set<String> = emptySet(),
     ): CoreState {
         val prevById = devices.associateBy { it.id }
         return copy(
@@ -271,6 +274,7 @@ data class CoreState(
                     deckState = prev?.deckState,
                     storageEnabled = if (p.id in storageAllowed) true else prev?.storageEnabled ?: false,
                     micEnabled = p.id !in micOff,
+                    awayModeEnabled = p.id !in awayOff,
                 )
             }.sortedWith(deviceOrder),
         )
@@ -288,6 +292,9 @@ data class CoreState(
         update(id) { it.copy(storageEnabled = enabled) }.copy(
             storageRequestedFrom = if (enabled && storageRequestedFrom == id) null else storageRequestedFrom,
         )
+
+    fun withDeviceAwayModeEnabled(id: String, enabled: Boolean): CoreState =
+        update(id) { it.copy(awayModeEnabled = enabled) }
 
     /** Folds one core event into the state. */
     fun reduce(event: Event): CoreState = when (event) {

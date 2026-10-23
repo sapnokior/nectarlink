@@ -1915,7 +1915,6 @@ impl qobject::AppController {
 
     pub fn style_shelf_window(&self) {
         win::tray::apply_no_activate_style_by_title("NectarLink Shelf");
-        win::tray::apply_no_activate_style_by_title("Nectar Island");
     }
 
     pub fn start_shelf_drag(&self, kind: &QString, id_or_path: &QString, text: &QString) -> bool {

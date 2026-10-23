@@ -33,6 +33,8 @@ pub enum CallCommand {
     Mute(bool),
     /// The speaker (true) or the earpiece.
     Speaker(bool),
+    /// Bluetooth audio.
+    Bluetooth(bool),
     /// Puts the call on hold (true) or takes it off.
     Hold(bool),
     /// A keypad tone: `0`-`9`, `*` or `#`.
@@ -51,6 +53,8 @@ impl CallCommand {
             CallCommand::Mute(false) => calls::UNMUTE,
             CallCommand::Speaker(true) => calls::SPEAKER,
             CallCommand::Speaker(false) => calls::EARPIECE,
+            CallCommand::Bluetooth(true) => calls::BLUETOOTH,
+            CallCommand::Bluetooth(false) => calls::EARPIECE,
             CallCommand::Hold(true) => calls::HOLD,
             CallCommand::Hold(false) => calls::UNHOLD,
             CallCommand::Dtmf(_) => calls::DTMF,
@@ -69,6 +73,7 @@ impl CallCommand {
             calls::UNMUTE => CallCommand::Mute(false),
             calls::SPEAKER => CallCommand::Speaker(true),
             calls::EARPIECE => CallCommand::Speaker(false),
+            calls::BLUETOOTH => CallCommand::Bluetooth(true),
             calls::HOLD => CallCommand::Hold(true),
             calls::UNHOLD => CallCommand::Hold(false),
             calls::DTMF => CallCommand::Dtmf(digit.filter(|d| is_dtmf_digit(d))?.chars().next()?),
@@ -99,7 +104,7 @@ impl CallCommand {
     fn needs_in_call(self) -> bool {
         matches!(
             self,
-            CallCommand::Mute(_) | CallCommand::Speaker(_) | CallCommand::Hold(_) | CallCommand::Dtmf(_)
+            CallCommand::Mute(_) | CallCommand::Speaker(_) | CallCommand::Bluetooth(_) | CallCommand::Hold(_) | CallCommand::Dtmf(_)
         )
     }
 }
@@ -138,10 +143,9 @@ impl Current {
 }
 
 impl Shared {
-    /// Whether this PC takes calls from `session`'s phone.
+    /// Whether this peer takes calls from this phone.
     fn call_target(&self, session: &Session) -> bool {
-        self.is_desktop(&session.peer)
-            && self.toggle_on(&session.peer, TOGGLE)
+        self.toggle_on(&session.peer, TOGGLE)
             && self.store.get_peer(&session.peer).ok().flatten().is_some_and(|p| p.caps.contains(calls::SHOW))
     }
 

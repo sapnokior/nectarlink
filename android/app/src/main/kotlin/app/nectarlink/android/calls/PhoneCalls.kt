@@ -144,16 +144,26 @@ internal class PhoneCalls(
                     // Android's broadcast never has the number of a call made on
                     // the phone: the one dialed from a PC, or Telecom's.
                     val outNumber = number ?: dialed ?: CallCompanion.number()
-                    val tracked = Tracked(id = now.toString(), incoming = false, number = outNumber, answered = true, since = now)
+                    val isConnected = CallCompanion.isConnected()
+                    val connectTime = CallCompanion.connectTimeMillis()
+                    val tracked = Tracked(
+                        id = now.toString(),
+                        incoming = false,
+                        number = outNumber,
+                        answered = isConnected,
+                        since = if (isConnected) (connectTime ?: now) else null,
+                    )
                     current = tracked
-                    report(tracked, CallPhase.ACTIVE)
+                    report(tracked, if (isConnected) CallPhase.ACTIVE else CallPhase.RINGING)
                 }
                 !call.answered -> {
                     if (call.number == null && number != null) {
                         call.number = number
                     }
+                    val isConnected = CallCompanion.isConnected()
+                    val connectTime = CallCompanion.connectTimeMillis()
                     call.answered = true
-                    call.since = System.currentTimeMillis()
+                    call.since = if (isConnected) (connectTime ?: System.currentTimeMillis()) else System.currentTimeMillis()
                     report(call, CallPhase.ACTIVE)
                 }
             }
@@ -194,25 +204,38 @@ internal class PhoneCalls(
         val name = found ?: CallCompanion.name()
         if (phase == CallPhase.ENDED) contacts.clear()
         val missed = missedCheck && wasMissed(id, number)
-        onChange(
-            Call(
-                id = id,
-                state = phase,
-                incoming = incoming,
-                number = number,
-                name = name,
-                photo = photo.takeIf { phase == CallPhase.RINGING || (!incoming && phase == CallPhase.ACTIVE) },
-                missed = missed,
-                since = since.takeIf { phase == CallPhase.ACTIVE },
-                controls = if (phase == CallPhase.ACTIVE) CallCompanion.controls() else null,
-            ),
+        val callObj = Call(
+            id = id,
+            state = phase,
+            incoming = incoming,
+            number = number,
+            name = name,
+            photo = photo.takeIf { phase == CallPhase.RINGING || (!incoming && phase == CallPhase.ACTIVE) },
+            missed = missed,
+            since = since.takeIf { phase == CallPhase.ACTIVE },
+            controls = CallCompanion.controls(),
         )
+        onChange(callObj)
+        PeerCallNotifications.broadcastUdp(android.os.Build.MODEL, callObj)
     }
 
     /** The companion's mute, speaker or hold changed: PCs hear of it. */
     private fun resendActive() {
         main.post {
-            current?.takeIf { it.answered }?.let { report(it, CallPhase.ACTIVE) }
+            current?.let { report(it, if (it.answered) CallPhase.ACTIVE else CallPhase.RINGING) }
+        }
+    }
+
+    /** The companion detected the call connected / was answered. */
+    internal fun callAnswered(connectTime: Long?) {
+        main.post {
+            val call = current ?: return@post
+            val effectiveTime = connectTime?.takeIf { it > 0 } ?: System.currentTimeMillis()
+            if (!call.answered || call.since == null) {
+                call.answered = true
+                call.since = effectiveTime
+                report(call, CallPhase.ACTIVE)
+            }
         }
     }
 
@@ -295,20 +318,43 @@ internal class PhoneCalls(
         val call = current?.takeIf { it.id == id } ?: return false
         return runCatching {
             when (command) {
-                CallCommand.Answer -> CallCompanion.answer() || telecom()?.let {
-                    // Deprecated for dialer apps, which get the call directly;
-                    // still how any other app answers one.
-                    @Suppress("DEPRECATION")
-                    it.acceptRingingCall()
-                    true
-                } == true
+                CallCommand.Answer -> {
+                    val answered = CallCompanion.answer() || telecom()?.let {
+                        // Deprecated for dialer apps, which get the call directly;
+                        // still how any other app answers one.
+                        @Suppress("DEPRECATION")
+                        it.acceptRingingCall()
+                        true
+                    } == true
+                    if (answered) {
+                        call.answered = true
+                        call.since = System.currentTimeMillis()
+                        report(call, CallPhase.ACTIVE)
+                    }
+                    answered
+                }
                 CallCommand.Decline -> {
                     call.declined = !call.answered
                     CallCompanion.hangUp() || hangUpWithTelecom()
                 }
                 CallCommand.Silence -> telecom()?.let { silence(it); true } == true
-                is CallCommand.Mute -> CallCompanion.mute(command.on)
-                is CallCommand.Speaker -> CallCompanion.speaker(command.on)
+                is CallCommand.Mute -> {
+                    val res = CallCompanion.mute(command.on)
+                    runCatching { context.getSystemService(AudioManager::class.java).isMicrophoneMute = command.on }
+                    resendActive()
+                    res
+                }
+                is CallCommand.Speaker -> {
+                    val res = CallCompanion.speaker(command.on)
+                    runCatching { context.getSystemService(AudioManager::class.java).isSpeakerphoneOn = command.on }
+                    resendActive()
+                    res
+                }
+                is CallCommand.Bluetooth -> {
+                    val res = CallCompanion.bluetooth(command.on)
+                    resendActive()
+                    res
+                }
                 is CallCommand.Hold -> CallCompanion.hold(command.on)
                 is CallCommand.Dtmf -> command.digit.singleOrNull()?.let(CallCompanion::dtmf) ?: false
                 is CallCommand.Volume -> {
@@ -483,6 +529,11 @@ internal class PhoneCalls(
         /** The companion's view of the call changed (mute, speaker, hold). */
         internal fun controlsChanged() {
             instance?.resendActive()
+        }
+
+        /** The companion detected the call was answered / became active. */
+        internal fun callAnswered(connectTime: Long?) {
+            instance?.callAnswered(connectTime)
         }
 
         /** The companion has the call's number (Telecom's handle). */

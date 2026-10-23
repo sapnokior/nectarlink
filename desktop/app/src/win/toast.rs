@@ -253,21 +253,46 @@ fn run(icon: &Path, queue: mpsc::Receiver<Command>, handler: Handler) {
         let _ = history.ClearWithId(&aumid);
     }
     let handler: &'static Handler = Box::leak(Box::new(handler));
+    let mut active_toasts: std::collections::HashMap<(String, String), ToastNotification> =
+        std::collections::HashMap::new();
     while let Ok(command) = queue.recv() {
         let result = match command {
-            Command::Show(toast) => show_now(&notifier, *toast, handler),
-            Command::Remove { device, key } => match &history {
-                Some(h) => h.RemoveGroupedTagWithId(
-                    &HSTRING::from(tag(&key)),
-                    &HSTRING::from(group(&device)),
-                    &aumid,
-                ),
-                None => Ok(()),
-            },
-            Command::RemoveDevice { device } => match &history {
-                Some(h) => h.RemoveGroupWithId(&HSTRING::from(group(&device)), &aumid),
-                None => Ok(()),
-            },
+            Command::Show(toast) => {
+                let key_pair = (tag(&toast.key), group(&toast.device));
+                show_now(&notifier, *toast, handler).map(|n| {
+                    active_toasts.insert(key_pair, n);
+                })
+            }
+            Command::Remove { device, key } => {
+                let t_tag = tag(&key);
+                let t_grp = group(&device);
+                if let Some(active) = active_toasts.remove(&(t_tag.clone(), t_grp.clone())) {
+                    let _ = notifier.Hide(&active);
+                }
+                match &history {
+                    Some(h) => h.RemoveGroupedTagWithId(
+                        &HSTRING::from(t_tag),
+                        &HSTRING::from(t_grp),
+                        &aumid,
+                    ),
+                    None => Ok(()),
+                }
+            }
+            Command::RemoveDevice { device } => {
+                let t_grp = group(&device);
+                active_toasts.retain(|(_, grp), active| {
+                    if grp == &t_grp {
+                        let _ = notifier.Hide(active);
+                        false
+                    } else {
+                        true
+                    }
+                });
+                match &history {
+                    Some(h) => h.RemoveGroupWithId(&HSTRING::from(t_grp), &aumid),
+                    None => Ok(()),
+                }
+            }
             Command::Progress { device, key, progress } => progress_data(&progress).and_then(|data| {
                 notifier
                     .UpdateWithTagAndGroup(&data, &HSTRING::from(tag(&key)), &HSTRING::from(group(&device)))
@@ -280,7 +305,7 @@ fn run(icon: &Path, queue: mpsc::Receiver<Command>, handler: Handler) {
     }
 }
 
-fn show_now(notifier: &ToastNotifier, toast: Toast, handler: &'static Handler) -> windows::core::Result<()> {
+fn show_now(notifier: &ToastNotifier, toast: Toast, handler: &'static Handler) -> windows::core::Result<ToastNotification> {
     let xml = XmlDocument::new()?;
     xml.LoadXml(&HSTRING::from(toast_xml(&toast)))?;
     let notification = ToastNotification::CreateToastNotification(&xml)?;
@@ -327,7 +352,8 @@ fn show_now(notifier: &ToastNotifier, toast: Toast, handler: &'static Handler) -
             Ok(())
         },
     ))?;
-    notifier.Show(&notification)
+    notifier.Show(&notification)?;
+    Ok(notification)
 }
 
 /// The values bound into a toast's progress bar.

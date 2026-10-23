@@ -54,6 +54,7 @@ class PcNotificationPoster(context: Context) {
      * dismisses it there.
      */
     fun post(deviceId: String, n: MirroredNotification, fromPeer: Boolean = false, deviceName: String = "") {
+        if (fromPeer && isCallNotification(n)) return
         val nm = manager ?: return
         if (!canPostNotifications()) return
         val keys = activeKeysByDevice.getOrPut(deviceId) { ConcurrentHashMap.newKeySet() }
@@ -116,14 +117,27 @@ class PcNotificationPoster(context: Context) {
     }
 
     fun reset(deviceId: String, items: List<MirroredNotification>, fromPeer: Boolean = false, deviceName: String = "") {
-        val newKeys = items.map { it.key }.toSet()
+        val effectiveItems = if (fromPeer) items.filterNot(::isCallNotification) else items
+        val newKeys = effectiveItems.map { it.key }.toSet()
         val previous = activeKeysByDevice[deviceId]?.toSet().orEmpty()
         for (removedKey in previous - newKeys) {
             manager?.cancel(notificationId(deviceId, removedKey))
         }
-        for (item in items) {
+        for (item in effectiveItems) {
             post(deviceId, item, fromPeer, deviceName)
         }
+    }
+
+    private fun isCallNotification(n: MirroredNotification): Boolean {
+        val key = n.key.lowercase()
+        val app = n.appName.lowercase()
+        return key.contains("dialer") ||
+            key.contains("telecom") ||
+            key.contains("incallui") ||
+            key.contains(".phone") ||
+            app == "phone" ||
+            app == "dialer" ||
+            app == "calls"
     }
 
     fun cancelAll(deviceId: String) {

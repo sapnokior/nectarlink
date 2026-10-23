@@ -361,6 +361,7 @@ pub const DEVICE_TOGGLES: &[(&str, bool)] = &[
     ("webcam", true),
     // The phone asks its user each time a PC wants its microphone.
     ("mic", true),
+    ("away_mode", true),
     // Browsing the phone's storage on a PC is opt-in.
     ("storage", false),
     // Viewing this PC's screen on a phone is opt-in.

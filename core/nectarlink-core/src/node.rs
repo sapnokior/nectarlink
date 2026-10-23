@@ -570,6 +570,13 @@ impl Shared {
         self.away_mode.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    pub(crate) fn is_peer_away_allowed(&self, peer: &DeviceId) -> bool {
+        if !self.away_mode() {
+            return false;
+        }
+        self.store.toggles(peer).map(|t| t.get("away_mode").copied().unwrap_or(true)).unwrap_or(true)
+    }
+
     pub(crate) fn is_allowed_peer_ip(&self, ip: std::net::IpAddr) -> bool {
         if self.away_mode() {
             return true;
@@ -578,7 +585,16 @@ impl Shared {
     }
 
     pub(crate) fn is_connection_allowed(&self, conn: &Connection) -> bool {
-        if self.away_mode() || self.is_usb_connection(conn) {
+        let peer = crate::device_id(&conn.remote_id());
+        self.is_connection_allowed_for_peer(&peer, conn)
+    }
+
+    pub(crate) fn is_connection_allowed_for_peer(&self, peer: &DeviceId, conn: &Connection) -> bool {
+        if self.is_usb_connection(conn) {
+            return true;
+        }
+        let away_ok = self.is_peer_away_allowed(peer);
+        if away_ok {
             return true;
         }
         let paths = conn.paths();
@@ -586,7 +602,7 @@ impl Shared {
         match selected {
             Some(p) if p.is_relay() => false,
             Some(p) => match p.remote_addr() {
-                iroh::TransportAddr::Ip(addr) => self.is_usb_addr(addr) || self.is_allowed_peer_ip(addr.ip()),
+                iroh::TransportAddr::Ip(addr) => self.is_usb_addr(addr) || crate::session::is_lan_ip(addr.ip()),
                 _ => false,
             },
             None => false,
@@ -594,16 +610,21 @@ impl Shared {
     }
 
     pub(crate) async fn wait_connection_allowed(&self, conn: &Connection) -> bool {
-        if self.away_mode() || self.is_usb_connection(conn) {
+        let peer = crate::device_id(&conn.remote_id());
+        self.wait_connection_allowed_for_peer(&peer, conn).await
+    }
+
+    pub(crate) async fn wait_connection_allowed_for_peer(&self, peer: &DeviceId, conn: &Connection) -> bool {
+        if self.is_usb_connection(conn) {
             return true;
         }
         for _ in 0..20 {
             if !conn.paths().is_empty() {
-                return self.is_connection_allowed(conn);
+                return self.is_connection_allowed_for_peer(peer, conn);
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        self.is_connection_allowed(conn)
+        self.is_connection_allowed_for_peer(peer, conn)
     }
 
     /// Our direct addresses, for pairing links. Waits briefly for the
@@ -803,7 +824,7 @@ impl Shared {
 
     /// Feeds known addresses of a peer into address lookup.
     pub fn remember_addrs(&self, peer: &DeviceId, addrs: &[SocketAddr]) {
-        let allow_wan = self.away_mode();
+        let allow_wan = self.is_peer_away_allowed(peer);
         let mut all: Vec<SocketAddr> = addrs
             .iter()
             .copied()
@@ -865,7 +886,7 @@ impl Shared {
         {
             paths.push(ConnectionPath::Usb);
         }
-        if self.away_mode() {
+        if self.is_peer_away_allowed(peer) {
             paths.push(ConnectionPath::Relay);
         }
         Ok(features::compute(
@@ -1057,7 +1078,7 @@ impl Shared {
         lock(&self.dial_failures).remove(&peer);
 
         tracing::info!(peer = %peer.short(), path = ?session.path(), "connected");
-        let allow_wan = self.away_mode();
+        let allow_wan = self.is_peer_away_allowed(&peer);
         let addrs: Vec<SocketAddr> = session
             .remote_ip_addrs()
             .into_iter()
@@ -1178,7 +1199,7 @@ impl Shared {
             .map_err(crate::error::net)?;
         let mut guard = CloseOnDrop(Some(conn));
         let conn_ref = guard.0.as_ref().expect("connection present");
-        if !self.wait_connection_allowed(conn_ref).await {
+        if !self.wait_connection_allowed_for_peer(&peer, conn_ref).await {
             tracing::debug!(peer = %peer.short(), "refusing outgoing session on non-LAN path while away_mode is off");
             if let Some(c) = guard.0.take() {
                 c.close(VarInt::from_u32(CLOSE_NORMAL), b"away mode disabled");
@@ -1534,7 +1555,7 @@ impl Node {
         tokio::task::spawn_blocking(move || transfer::clean_incoming(&incoming));
 
         for peer in shared.store.list_peers()? {
-            if !config.away_mode {
+            if !shared.is_peer_away_allowed(&peer.id) {
                 let lan_only: Vec<SocketAddr> = peer
                     .last_addrs
                     .iter()
@@ -1857,6 +1878,22 @@ impl Node {
             self.shared.runtime.spawn(async move {
                 crate::actions::send_wake_info(&shared, &session).await;
             });
+        }
+        if toggle == "away_mode" {
+            if !enabled {
+                if let Some(session) = self.shared.session(&peer) {
+                    if !self.shared.is_connection_allowed_for_peer(&peer, &session.conn) {
+                        tracing::info!(peer = %peer.short(), "closing non-LAN session after disabling device away_mode");
+                        session.close(CLOSE_NORMAL, b"away mode disabled");
+                    }
+                }
+                self.shared.purge_non_lan_addrs(&peer);
+            } else {
+                if let Ok(Some(record)) = self.shared.store.get_peer(&peer) {
+                    self.shared.remember_addrs(&peer, &record.last_addrs);
+                }
+                self.shared.wake_supervisor(&peer);
+            }
         }
         if toggle == crate::storage::TOGGLE {
             let mut st = self.shared.storage.lock().unwrap_or_else(|e| e.into_inner());
@@ -3740,24 +3777,12 @@ async fn bind_endpoint(
     let mut builder = Endpoint::builder(presets::Minimal)
         .secret_key(secret)
         .alpns(vec![ALPN_SESSION.to_vec(), ALPN_PAIR.to_vec()])
-        .transport_config(transport);
-    builder = if config.away_mode {
-        builder
-            .relay_mode(RelayMode::Default)
-            .address_lookup(PkarrPublisher::n0_dns())
-            .address_lookup(PkarrResolver::n0_dns())
-            .address_lookup(DnsAddressLookup::n0_dns())
-    } else {
-        // LAN only: no relays, nothing published outside the network.
-        builder.relay_mode(RelayMode::Disabled)
-    };
-    if !config.away_mode {
-        let v4_port = ports.map_or(0, |p| p.v4);
-        builder = builder
-            .clear_ip_transports()
-            .bind_addr(SocketAddr::from(([0, 0, 0, 0], v4_port)))
-            .map_err(crate::error::net)?;
-    } else if let Some(ports) = ports {
+        .transport_config(transport)
+        .relay_mode(RelayMode::Default)
+        .address_lookup(PkarrPublisher::n0_dns())
+        .address_lookup(PkarrResolver::n0_dns())
+        .address_lookup(DnsAddressLookup::n0_dns());
+    if let Some(ports) = ports {
         builder = builder
             .clear_ip_transports()
             .bind_addr(SocketAddr::from(([0, 0, 0, 0], ports.v4)))

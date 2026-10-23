@@ -46,6 +46,7 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- Scanning the pairing QR code. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Find my phone. -->
@@ -200,6 +201,20 @@
         <receiver
             android:name=".notifications.PcNotificationPoster$DismissReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".calls.PeerCallActionReceiver"
+            android:exported="false" />
+
+        <activity
+            android:name=".calls.IncomingCallActivity"
+            android:exported="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:showOnLockScreen="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Nectarlink" />
 
         <!-- Android's answers while installing an update. -->
         <receiver

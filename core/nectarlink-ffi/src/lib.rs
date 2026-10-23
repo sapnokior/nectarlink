@@ -655,10 +655,11 @@ pub enum Event {
         id: String,
         photo_id: String,
     },
-    /// A call on a paired phone changed (PCs only; phones report theirs).
+    /// A call on a paired phone changed.
     CallChanged {
         id: String,
         call_id: String,
+        call: Call,
     },
     /// A paired phone's call history changed (PCs only).
     CallLogChanged {
@@ -1398,12 +1399,41 @@ pub struct CallControls {
     pub speaker: bool,
     pub held: bool,
     pub can_hold: bool,
+    pub bluetooth: bool,
+    pub has_bluetooth: bool,
 }
 
 /// Never prints the number, name or photo (protocol v0 §11).
 impl std::fmt::Debug for Call {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Call").field("id", &self.id).field("state", &self.state).finish_non_exhaustive()
+    }
+}
+
+impl From<core::CallState> for Call {
+    fn from(c: core::CallState) -> Self {
+        Call {
+            id: c.id,
+            state: match c.state.as_str() {
+                "ringing" => CallPhase::Ringing,
+                "active" => CallPhase::Active,
+                _ => CallPhase::Ended,
+            },
+            incoming: c.incoming,
+            number: c.number,
+            name: c.name,
+            photo: c.photo,
+            missed: c.missed,
+            since: c.since,
+            controls: c.controls.map(|ctrl| CallControls {
+                muted: ctrl.muted,
+                speaker: ctrl.speaker,
+                held: ctrl.held,
+                can_hold: ctrl.can_hold,
+                bluetooth: ctrl.bluetooth,
+                has_bluetooth: ctrl.has_bluetooth,
+            }),
+        }
     }
 }
 
@@ -1428,6 +1458,10 @@ pub enum CallCommand {
     },
     /// The speaker (true) or the earpiece.
     Speaker {
+        on: bool,
+    },
+    /// Bluetooth audio.
+    Bluetooth {
         on: bool,
     },
     /// Put the call on hold (true) or take it off.
@@ -2464,7 +2498,12 @@ impl Event {
                 Event::PhotoAdded { id: device.to_string(), photo_id: photo.id }
             }
             NodeEvent::Call { device, call } => {
-                Event::CallChanged { id: device.to_string(), call_id: call.id }
+                let call_id = call.id.clone();
+                Event::CallChanged {
+                    id: device.to_string(),
+                    call_id,
+                    call: call.into(),
+                }
             }
             NodeEvent::CallLogChanged { device } => Event::CallLogChanged { id: device.to_string() },
             NodeEvent::ContactsChanged { device } => Event::ContactsChanged { id: device.to_string() },
@@ -3057,6 +3096,7 @@ impl core::Platform for PlatformAdapter {
             core::CallCommand::Silence => CallCommand::Silence,
             core::CallCommand::Mute(on) => CallCommand::Mute { on },
             core::CallCommand::Speaker(on) => CallCommand::Speaker { on },
+            core::CallCommand::Bluetooth(on) => CallCommand::Bluetooth { on },
             core::CallCommand::Hold(on) => CallCommand::Hold { on },
             core::CallCommand::Dtmf(digit) => CallCommand::Dtmf { digit: digit.to_string() },
             core::CallCommand::Volume(up) => CallCommand::Volume { up },
@@ -4173,6 +4213,8 @@ impl NectarlinkNode {
                 speaker: c.speaker,
                 held: c.held,
                 can_hold: c.can_hold,
+                bluetooth: c.bluetooth,
+                has_bluetooth: c.has_bluetooth,
             }),
         };
         self.run(async move { Ok(node.call_changed(call).await?) }).await
@@ -4388,6 +4430,31 @@ impl NectarlinkNode {
         let peer_id = parse_id(&peer)?;
         let node = self.node.clone();
         self.run(async move { Ok::<_, NectarlinkError>(node.call_dial(peer_id, number).await?) }).await
+    }
+
+    /// Asks a paired phone to answer, decline, silence or control a call.
+    pub async fn peer_call_command(
+        &self,
+        peer: String,
+        call_id: String,
+        command: CallCommand,
+    ) -> Result<()> {
+        let peer_id = parse_id(&peer)?;
+        let node = self.node.clone();
+        let cmd = match command {
+            CallCommand::Answer => core::CallCommand::Answer,
+            CallCommand::Decline => core::CallCommand::Decline,
+            CallCommand::Silence => core::CallCommand::Silence,
+            CallCommand::Mute { on } => core::CallCommand::Mute(on),
+            CallCommand::Speaker { on } => core::CallCommand::Speaker(on),
+            CallCommand::Bluetooth { on } => core::CallCommand::Bluetooth(on),
+            CallCommand::Hold { on } => core::CallCommand::Hold(on),
+            CallCommand::Dtmf { digit } => {
+                core::CallCommand::Dtmf(digit.chars().next().unwrap_or('0'))
+            }
+            CallCommand::Volume { up } => core::CallCommand::Volume(up),
+        };
+        self.run(async move { Ok::<_, NectarlinkError>(node.call_command(peer_id, call_id, cmd).await?) }).await
     }
 
     /// A paired phone's latest conversations, newest first.

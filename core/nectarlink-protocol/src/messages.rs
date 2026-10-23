@@ -2109,6 +2109,7 @@ pub mod calls {
     pub const UNMUTE: &str = "unmute";
     pub const SPEAKER: &str = "speaker";
     pub const EARPIECE: &str = "earpiece";
+    pub const BLUETOOTH: &str = "bluetooth";
     pub const HOLD: &str = "hold";
     pub const UNHOLD: &str = "unhold";
     /// A keypad tone: `digit` is one of `0`-`9`, `*`, `#`.
@@ -2129,6 +2130,10 @@ pub struct CallControls {
     /// The call can be put on hold.
     #[serde(default)]
     pub can_hold: bool,
+    #[serde(default)]
+    pub bluetooth: bool,
+    #[serde(default)]
+    pub has_bluetooth: bool,
 }
 
 /// Body of `call.state`: a call on the phone started ringing, was

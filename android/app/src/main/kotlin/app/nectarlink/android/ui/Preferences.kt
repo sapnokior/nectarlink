@@ -120,6 +120,7 @@ class Preferences(context: Context) {
         private const val TOUCHPAD_SENSITIVITY = "touchpad_sensitivity"
         private const val SUGGEST_CLIPBOARD_ACTIONS = "suggest_clipboard_actions"
         private const val AWAY_MODE = "away_mode"
+        private const val DEVICE_AWAY_PREFIX = "device_away_mode_"
         private const val WALKTHROUGH_COMPLETED = "walkthrough_completed"
         private const val WALKTHROUGH_STEP = "walkthrough_step"
         private const val WHATS_NEW_GUIDE_DISMISSED = "whats_new_guide_dismissed"
@@ -167,12 +168,23 @@ class Preferences(context: Context) {
         fun isAwayModeEnabled(context: Context): Boolean =
             context.applicationContext
                 .getSharedPreferences("appearance", Context.MODE_PRIVATE)
-                .getBoolean(AWAY_MODE, false)
+                .getBoolean(AWAY_MODE, true)
 
         fun setAwayModeEnabled(context: Context, enabled: Boolean) {
             context.applicationContext
                 .getSharedPreferences("appearance", Context.MODE_PRIVATE)
                 .edit { putBoolean(AWAY_MODE, enabled) }
+        }
+
+        fun isDeviceAwayModeEnabled(context: Context, id: String): Boolean =
+            context.applicationContext
+                .getSharedPreferences("appearance", Context.MODE_PRIVATE)
+                .getBoolean("$DEVICE_AWAY_PREFIX$id", true)
+
+        fun setDeviceAwayModeEnabled(context: Context, id: String, enabled: Boolean) {
+            context.applicationContext
+                .getSharedPreferences("appearance", Context.MODE_PRIVATE)
+                .edit { putBoolean("$DEVICE_AWAY_PREFIX$id", enabled) }
         }
     }
 }

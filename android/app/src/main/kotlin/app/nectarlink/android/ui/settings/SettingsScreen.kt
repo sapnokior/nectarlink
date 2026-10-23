@@ -108,6 +108,7 @@ fun SettingsScreen(
     updater: AppUpdater,
     onSetStorageEnabled: (pcId: String, enabled: Boolean) -> Unit = { _, _ -> },
     onSetMicEnabled: (pcId: String, enabled: Boolean) -> Unit = { _, _ -> },
+    onSetDeviceAwayModeEnabled: (deviceId: String, enabled: Boolean) -> Unit = { _, _ -> },
     onAddSafFolder: (Uri) -> Unit = {},
     onRemoveSafFolder: (String) -> Unit = {},
     onSetClipboardHistoryEnabled: (Boolean) -> Unit = {},
@@ -497,29 +498,29 @@ fun SettingsScreen(
                                 }
                                 OutlinedButton(onClick = { confirmUnpair = device }) { Text(stringResource(R.string.action_unpair)) }
                             }
-                            val storageToggleTitle = stringResource(R.string.storage_pc_toggle)
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                                    Text(storageToggleTitle, style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                        stringResource(R.string.storage_pc_toggle_hint),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            if (!device.isAndroid) {
+                                val storageToggleTitle = stringResource(R.string.storage_pc_toggle)
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                                        Text(storageToggleTitle, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            stringResource(R.string.storage_pc_toggle_hint),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Switch(
+                                        checked = device.storageEnabled,
+                                        onCheckedChange = { enabled ->
+                                            onSetStorageEnabled(device.id, enabled)
+                                            if (enabled && !state.storageAllFilesAccess && state.storageSafFolders.isEmpty()) {
+                                                runCatching { context.startActivity(PhoneStorage.allFilesAccessIntent(context)) }
+                                            }
+                                        },
+                                        colors = app.nectarlink.android.ui.theme.nectarSwitchColors(),
+                                        modifier = Modifier.semantics { contentDescription = storageToggleTitle },
                                     )
                                 }
-                                Switch(
-                                    checked = device.storageEnabled,
-                                    onCheckedChange = { enabled ->
-                                        onSetStorageEnabled(device.id, enabled)
-                                        if (enabled && !state.storageAllFilesAccess && state.storageSafFolders.isEmpty()) {
-                                            runCatching { context.startActivity(PhoneStorage.allFilesAccessIntent(context)) }
-                                        }
-                                    },
-                                    colors = app.nectarlink.android.ui.theme.nectarSwitchColors(),
-                                    modifier = Modifier.semantics { contentDescription = storageToggleTitle },
-                                )
-                            }
-                            if (!device.isAndroid) {
                                 val micToggleTitle = stringResource(R.string.mic_pc_toggle)
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.weight(1f).padding(end = 12.dp)) {
@@ -540,7 +541,6 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    FilledTonalButton(onClick = onPairNew) { Text(stringResource(R.string.action_pair_new)) }
                     SettingRowDivider()
                     val mobileDataTitle = stringResource(R.string.guide_away_title)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {

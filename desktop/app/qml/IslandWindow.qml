@@ -177,7 +177,6 @@ Window {
 
     onVisibleChanged: {
         if (visible) {
-            Qt.callLater(() => AppController.styleShelfWindow())
             if (!Theme.reduceMotion)
                 dropInAnim.restart()
         }
@@ -187,26 +186,16 @@ Window {
         Qt.callLater(() => {
             recomputeMedia()
             recomputeTransfer()
-            AppController.styleShelfWindow()
         })
-    }
-
-    Connections {
-        target: Preferences
-        function onNectarIslandChanged() {
-            if (Preferences.nectarIsland) {
-                Qt.callLater(() => AppController.styleShelfWindow())
-            }
-        }
     }
 
     readonly property bool expanded: pillHover.hovered || (Preferences.nectarIslandCalls && PhoneCall.active && PhoneCall.ringing)
     readonly property real pillWidth: expanded ? 380 : 340
     readonly property real pillHeight: expanded ? 88 : 40
     width: 400
-    height: 104
+    height: 116
     x: areaX + Math.round((areaW - width) / 2)
-    y: areaY + 8
+    y: Math.max(0, areaY)
 
     readonly property string primaryLabel: {
         if (mode === "call")
@@ -267,6 +256,10 @@ Window {
     Item {
         id: root
         anchors.fill: parent
+        opacity: islandWin.visible ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
 
         // Hidden repeaters inside Item scope so QtQuick instantiates delegates cleanly
         Repeater {
@@ -328,10 +321,11 @@ Window {
             id: dropInAnim
             target: dropSlide
             property: "y"
-            from: -18
+            from: -8
             to: 0
-            duration: 240
-            easing.type: Easing.OutBack
+            duration: 220
+            easing.type: Easing.OutCubic
+            alwaysRunToEnd: true
         }
 
         // Subtle outer ambient halo around the Dynamic Island capsule
@@ -350,7 +344,7 @@ Window {
         Rectangle {
             id: pillBg
             anchors.top: parent.top
-            anchors.topMargin: 2
+            anchors.topMargin: 12
             anchors.horizontalCenter: parent.horizontalCenter
             width: islandWin.pillWidth
             height: islandWin.pillHeight

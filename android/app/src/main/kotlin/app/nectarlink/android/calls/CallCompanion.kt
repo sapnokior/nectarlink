@@ -56,8 +56,16 @@ class CallCompanion : InCallService() {
     private fun changed() {
         number()?.let(PhoneCalls::companionNumber)
         val state = call?.stateNow()
-        if (state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING) PhoneCalls.controlsChanged()
+        val connectTime = connectTimeMillis()
+        if (state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING) {
+            PhoneCalls.callAnswered(connectTime)
+            PhoneCalls.controlsChanged()
+        }
     }
+
+    /** The time the call connected in milliseconds (null when not connected yet). */
+    private fun connectTimeMillis(): Long? =
+        call?.details?.connectTimeMillis?.takeIf { it > 0 }
 
     /** The call's number, from its `tel:` handle (null when hidden). */
     private fun number(): String? =
@@ -75,11 +83,17 @@ class CallCompanion : InCallService() {
         val call = call ?: return null
         @Suppress("DEPRECATION")
         val audio = callAudioState ?: return null
+        val isMuted = audio.isMuted
+        val isSpeaker = audio.route == CallAudioState.ROUTE_SPEAKER
+        val isBluetooth = audio.route == CallAudioState.ROUTE_BLUETOOTH
+        val hasBluetooth = (audio.supportedRouteMask and CallAudioState.ROUTE_BLUETOOTH) != 0
         return CallControls(
-            muted = audio.isMuted,
-            speaker = audio.route == CallAudioState.ROUTE_SPEAKER,
+            muted = isMuted,
+            speaker = isSpeaker,
             held = call.stateNow() == Call.STATE_HOLDING,
             canHold = call.details.can(Call.Details.CAPABILITY_HOLD),
+            bluetooth = isBluetooth,
+            hasBluetooth = hasBluetooth,
         )
     }
 
@@ -98,6 +112,11 @@ class CallCompanion : InCallService() {
     @Suppress("DEPRECATION") // setAudioRoute: still how a companion picks the speaker.
     private fun speaker(on: Boolean) {
         setAudioRoute(if (on) CallAudioState.ROUTE_SPEAKER else CallAudioState.ROUTE_WIRED_OR_EARPIECE)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun bluetooth(on: Boolean) {
+        setAudioRoute(if (on) CallAudioState.ROUTE_BLUETOOTH else CallAudioState.ROUTE_WIRED_OR_EARPIECE)
     }
 
     private fun hold(on: Boolean): Boolean {
@@ -137,6 +156,14 @@ class CallCompanion : InCallService() {
         /** The call in progress' mute, speaker and hold, when bound. */
         fun controls(): CallControls? = instance?.controls()
 
+        fun connectTimeMillis(): Long? = instance?.connectTimeMillis()
+
+        fun isConnected(): Boolean {
+            val c = instance?.call ?: return false
+            val s = c.stateNow()
+            return s == Call.STATE_ACTIVE || s == Call.STATE_HOLDING
+        }
+
         /** The call's number as Telecom has it, when bound. */
         fun number(): String? = instance?.number()
 
@@ -150,6 +177,8 @@ class CallCompanion : InCallService() {
         fun mute(on: Boolean): Boolean = instance?.run { setMuted(on); true } ?: false
 
         fun speaker(on: Boolean): Boolean = instance?.run { speaker(on); true } ?: false
+
+        fun bluetooth(on: Boolean): Boolean = instance?.run { bluetooth(on); true } ?: false
 
         fun hold(on: Boolean): Boolean = instance?.hold(on) ?: false
 

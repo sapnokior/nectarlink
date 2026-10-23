@@ -20,6 +20,7 @@ import app.nectarlink.android.files.TransferNotifications
 import app.nectarlink.android.R
 import app.nectarlink.android.notifications.NotificationListener
 import app.nectarlink.android.notifications.PcNotificationPoster
+import app.nectarlink.android.calls.PeerCallNotifications
 import app.nectarlink.android.calls.CallCompanion
 import app.nectarlink.android.calls.PhoneCalls
 import app.nectarlink.android.companion.PcCompanion
@@ -89,6 +90,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
     private val context = context.applicationContext.also { PhoneClipboard.init(it) }
     private val ringer = Ringer(this.context)
     private val pcNotificationPoster = PcNotificationPoster(this.context)
+    val peerCallNotifications = PeerCallNotifications(this.context)
     private val pcSpeakerPlayer = PcSpeakerPlayer()
     /** What plays on this phone, for PCs (needs notification access). */
     private val phoneMedia = PhoneMedia(this.context) { players ->
@@ -368,7 +370,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
             }
             node = started
             val devices = runCatching { started.pairedDevices() }.getOrDefault(emptyList())
-            val pcToggles = perPcToggles(started, devices.map { it.id })
+            val perDevice = perDeviceToggles(started, devices.map { it.id })
             val clipHistEnabled = runCatching { started.clipboardHistoryEnabled() }.getOrDefault(true)
             val clipHist = if (clipHistEnabled) {
                 runCatching { started.clipboardHistory(null) }.getOrDefault(emptyList())
@@ -387,7 +389,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
             localsendMulticast?.runCatching { if (lsEnabled) acquire() else release() }
             pruneOldTempCaches()
             _state.update {
-                it.withDevices(devices, pcToggles.storageAllowed, pcToggles.micOff).copy(
+                it.withDevices(devices, perDevice.storageAllowed, perDevice.micOff, perDevice.awayOff).copy(
                     status = CoreStatus.Ready(started.deviceId()),
                     sendQueue = initialQueue,
                     clipboardHistoryEnabled = clipHistEnabled,
@@ -566,7 +568,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
                     }
                     val prevPhotos = _state.value.photoAccess
                     val currentNode = node
-                    val pcToggles = currentNode?.let { perPcToggles(it, _state.value.devices.map { d -> d.id }) }
+                    val perDevice = currentNode?.let { perDeviceToggles(it, _state.value.devices.map { d -> d.id }) }
                     _state.update {
                         it.copy(
                             notificationAccess = granted,
@@ -585,9 +587,13 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
                             storageAllFilesAccess = storageAllFilesAccess,
                             storageSafFolders = storageSafFolders,
                             localNetwork = localNetwork,
-                            devices = if (pcToggles != null) {
+                            devices = if (perDevice != null) {
                                 it.devices.map { d ->
-                                    d.copy(storageEnabled = d.id in pcToggles.storageAllowed, micEnabled = d.id !in pcToggles.micOff)
+                                    d.copy(
+                                        storageEnabled = d.id in perDevice.storageAllowed,
+                                        micEnabled = d.id !in perDevice.micOff,
+                                        awayModeEnabled = d.id !in perDevice.awayOff,
+                                    )
                                 }
                             } else {
                                 it.devices
@@ -665,6 +671,10 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
                 val (peer, name) = peerOf(event.id)
                 pcNotificationPoster.reset(event.id, event.items, peer, name)
             }
+            is Event.CallChanged -> scope.launch(Dispatchers.Default) {
+                val (_, name) = peerOf(event.id)
+                peerCallNotifications.onCallChanged(event.id, name, event.call)
+            }
             is Event.PcAudioFrame -> pcSpeakerPlayer.playFrame(
                 event.sampleRate.toInt(),
                 event.channels.toInt(),
@@ -702,6 +712,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
             // sends what plays when it's back.
             is Event.LinkChanged -> {
                 if (event.link is Link.Offline) {
+                    peerCallNotifications.onDeviceOffline(event.id)
                     scope.launch(Dispatchers.Default) {
                         pcMedia.update(event.id, "", emptyList())
                     }
@@ -723,6 +734,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
             is Event.DeviceAdded -> ConnectionService.start(context)
             is Event.DeviceRemoved -> {
                 wakeTimers.remove(event.id)?.cancel()
+                peerCallNotifications.onDeviceOffline(event.id)
                 scope.launch(Dispatchers.Default) {
                     pcMedia.update(event.id, "", emptyList())
                     pcNotificationPoster.cancelAll(event.id)
@@ -962,6 +974,11 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
         command { it.dismissPeerNotification(id, key) }
     }
 
+    /** Asks a paired phone to answer, decline, silence or control a call. */
+    fun peerCallCommand(id: String, callId: String, command: app.nectarlink.core.CallCommand) {
+        command { it.peerCallCommand(id, callId, command) }
+    }
+
     /** Stops this phone's microphone stream to [pcId] and tells the PC. */
     fun micStop(pcId: String) {
         command { it.micStop(pcId) }
@@ -994,18 +1011,36 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
         }
     }
 
-    /** Which PCs may browse this phone's storage, and which may not ask for its microphone. */
-    private class PerPcToggles(val storageAllowed: Set<String>, val micOff: Set<String>)
+    /** Which devices may browse this phone's storage, which may not ask for its microphone, and which may not connect over relay/away mode. */
+    private class PerDeviceToggles(
+        val storageAllowed: Set<String>,
+        val micOff: Set<String>,
+        val awayOff: Set<String>,
+    )
 
-    private fun perPcToggles(node: NectarlinkNode, ids: List<String>): PerPcToggles {
+    private fun perDeviceToggles(node: NectarlinkNode, ids: List<String>): PerDeviceToggles {
         val storage = mutableSetOf<String>()
         val micOff = mutableSetOf<String>()
+        val awayOff = mutableSetOf<String>()
         for (id in ids) {
             val toggles = runCatching { node.deviceToggles(id) }.getOrNull() ?: continue
             if (toggles.any { it.name == PhoneStorage.TOGGLE_NAME && it.enabled }) storage += id
             if (toggles.any { it.name == app.nectarlink.android.mic.MicService.TOGGLE_NAME && !it.enabled }) micOff += id
+            if (toggles.any { it.name == "away_mode" && !it.enabled }) awayOff += id
         }
-        return PerPcToggles(storage, micOff)
+        return PerDeviceToggles(storage, micOff, awayOff)
+    }
+
+    /** Sets whether [deviceId] can connect over mobile data / relay when away from Wi-Fi (on by default). */
+    fun setDeviceAwayModeEnabled(deviceId: String, enabled: Boolean) {
+        app.nectarlink.android.ui.Preferences.setDeviceAwayModeEnabled(context, deviceId, enabled)
+        _state.update { it.withDeviceAwayModeEnabled(deviceId, enabled) }
+        scope.launch(Dispatchers.IO) {
+            startJob?.join()
+            val currentNode = node ?: return@launch
+            runCatching { currentNode.setDeviceToggle(deviceId, "away_mode", enabled) }
+                .onFailure { Log.w(TAG, "can't change the away mode toggle", it) }
+        }
     }
 
     fun clearWebcamRequest(pcId: String? = null) {
@@ -1714,6 +1749,8 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
             listOf("media.watch") +
             // Shows a paired phone's or tablet's notifications.
             listOf("notify.show") +
+            // Shows a paired phone's incoming and ongoing calls.
+            listOf("call.show") +
             // Phone as microphone: asks for the permission when a PC first wants it.
             (if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)) listOf("mic.stream") else emptyList()) +
             toggles.capabilities() +
