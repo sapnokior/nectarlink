@@ -356,7 +356,7 @@ fn reconcile(desired: &[(DeviceId, String, bool)], disabled: &[(DeviceId, String
                     core_host::spawn(async move {
                         let is_root_populated = lock(&root.populated_dirs).contains("");
                         if is_root_populated {
-                            refresh_folder(root, "").await;
+                            refresh_all_known_folders(root).await;
                         }
                     });
                 }
@@ -494,7 +494,7 @@ fn register_and_connect(device: DeviceId, name: &str, online: bool) -> Result<()
         core_host::spawn(async move {
             // Pre-populate top-level placeholders when connected so opening the
             // sync root in Explorer or inspecting it immediately shows folders.
-            refresh_folder(active, "").await;
+            refresh_all_known_folders(active).await;
         });
     }
 
@@ -980,6 +980,45 @@ async fn refresh_folder(root: Arc<ActiveRoot>, rel_folder: &str) {
             Some(&mut processed),
         )
     };
+}
+
+/// Refreshes all locally known/existing folders under `root.root_path` from the phone.
+async fn refresh_all_known_folders(root: Arc<ActiveRoot>) {
+    refresh_folder(root.clone(), "").await;
+    let root_path = root.root_path.clone();
+    let dirs = tokio::task::spawn_blocking(move || {
+        let mut dirs = Vec::new();
+        fn scan_subdirs(base: &Path, current: &Path, depth: usize, out: &mut Vec<String>) {
+            if depth > 4 {
+                return;
+            }
+            if let Ok(entries) = std::fs::read_dir(current) {
+                for entry in entries.flatten() {
+                    if let Ok(file_type) = entry.file_type()
+                        && file_type.is_dir()
+                    {
+                        let path = entry.path();
+                        if let Some(rel) = relative_path_under_root(base, &path) {
+                            if !rel.is_empty()
+                                && !rel.split('/').any(|s| s.starts_with('.') || s.starts_with("~$"))
+                            {
+                                out.push(rel);
+                                scan_subdirs(base, &path, depth + 1, out);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        scan_subdirs(&root_path, &root_path, 0, &mut dirs);
+        dirs
+    })
+    .await
+    .unwrap_or_default();
+
+    for dir in dirs {
+        refresh_folder(root.clone(), &dir).await;
+    }
 }
 
 /// Watches the sync root directory for files or folders dropped in by the user

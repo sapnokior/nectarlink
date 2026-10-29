@@ -217,17 +217,15 @@ pub(crate) async fn notify_changed(shared: &Arc<Shared>, path: String) {
     if !is_valid_storage_dir_path(&path) {
         return;
     }
-    let peers = {
-        let mut st = shared.storage.lock().unwrap_or_else(|e| e.into_inner());
-        st.peers_watching(&path, Instant::now())
-    };
-    if peers.is_empty() {
-        return;
-    }
-    let Ok(env) = Envelope::new(types::STORAGE_CHANGED, &StorageChanged { path }) else {
+    let Ok(env) = Envelope::new(types::STORAGE_CHANGED, &StorageChanged { path: path.clone() }) else {
         return;
     };
-    for peer in peers {
+    let Ok(peers) = shared.store.list_peers() else {
+        return;
+    };
+    let now = Instant::now();
+    for p in peers {
+        let peer = p.id;
         if shared.toggle_on(&peer, TOGGLE)
             && let Some(session) = shared.session(&peer)
         {
@@ -235,7 +233,17 @@ pub(crate) async fn notify_changed(shared: &Arc<Shared>, path: String) {
             {
                 continue;
             }
-            let _ = session.send(env.clone()).await;
+            let key = (peer, path.clone());
+            let should_send = {
+                let mut st = shared.storage.lock().unwrap_or_else(|e| e.into_inner());
+                st.last_changed
+                    .get(&key)
+                    .is_none_or(|prev| now.saturating_duration_since(*prev) >= CHANGED_DEBOUNCE)
+            };
+            if should_send {
+                shared.storage.lock().unwrap_or_else(|e| e.into_inner()).last_changed.insert(key, now);
+                let _ = session.send(env.clone()).await;
+            }
         }
     }
 }
