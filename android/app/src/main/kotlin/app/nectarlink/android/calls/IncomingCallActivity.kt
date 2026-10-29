@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nectarlink.android.NectarlinkApplication
 import app.nectarlink.android.R
+import app.nectarlink.android.ui.calls.ActiveCallCard
 import app.nectarlink.core.Call
 import app.nectarlink.core.CallCommand
 import app.nectarlink.core.CallPhase
@@ -55,6 +58,7 @@ import kotlinx.coroutines.launch
 class IncomingCallActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         super.onCreate(savedInstanceState)
         activeInstance = this
 
@@ -76,36 +80,47 @@ class IncomingCallActivity : ComponentActivity() {
         val cId = currentCall?.id ?: intent.getStringExtra(PeerCallNotifications.EXTRA_CALL_ID).orEmpty()
         val call = currentCall
 
-        if (call != null && !call.incoming) {
+        if (call != null && !call.incoming && ActiveCallManager.activeCall.value == null) {
             finish()
             return
         }
 
         setContent {
-            IncomingCallScreen(
-                deviceName = devName.ifBlank { "Paired Phone" },
-                call = call,
-                onAnswer = {
-                    val app = applicationContext as NectarlinkApplication
-                    PeerCallNotifications.optimisticUpdate(devId, answered = true)
-                    CoroutineScope(Dispatchers.IO).launch {
-                        app.core.peerCallCommand(devId, cId, CallCommand.Answer)
-                    }
-                    finish()
-                },
-                onDecline = {
-                    val app = applicationContext as NectarlinkApplication
-                    currentCall?.let {
-                        val endedCall = it.copy(state = CallPhase.ENDED)
-                        PeerCallNotifications.broadcastUdp(devName, endedCall)
-                    }
-                    CoroutineScope(Dispatchers.IO).launch {
-                        app.core.peerCallCommand(devId, cId, CallCommand.Decline)
-                    }
-                    app.core.peerCallNotifications.cancelCall(devId, cId)
-                    finish()
-                },
-            )
+            val activeCall by ActiveCallManager.activeCall.collectAsState()
+
+            if (activeCall != null) {
+                InCallScreen(
+                    call = activeCall!!,
+                    onEnd = {
+                        ActiveCallManager.hangUp()
+                        finish()
+                    },
+                )
+            } else {
+                IncomingCallScreen(
+                    deviceName = devName.ifBlank { "Paired Phone" },
+                    call = call,
+                    onAnswer = {
+                        val app = applicationContext as NectarlinkApplication
+                        PeerCallNotifications.optimisticUpdate(devId, answered = true)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            app.core.peerCallCommand(devId, cId, CallCommand.Answer)
+                        }
+                    },
+                    onDecline = {
+                        val app = applicationContext as NectarlinkApplication
+                        currentCall?.let {
+                            val endedCall = it.copy(state = CallPhase.ENDED)
+                            PeerCallNotifications.broadcastUdp(devName, endedCall)
+                        }
+                        CoroutineScope(Dispatchers.IO).launch {
+                            app.core.peerCallCommand(devId, cId, CallCommand.Decline)
+                        }
+                        app.core.peerCallNotifications.cancelCall(devId, cId)
+                        finish()
+                    },
+                )
+            }
         }
     }
 
@@ -131,19 +146,43 @@ class IncomingCallActivity : ComponentActivity() {
             currentDeviceId = deviceId
             currentDeviceName = deviceName
             currentCall = call
-            if (call.state != CallPhase.RINGING || !call.incoming) {
+            if (call.state == CallPhase.ENDED) {
                 dismissIfActive(call.id)
             }
         }
 
         fun dismissIfActive(callId: String? = null) {
             val instance = activeInstance ?: return
+            if (ActiveCallManager.activeCall.value != null && callId != null && ActiveCallManager.activeCall.value?.callId == callId) {
+                return
+            }
             if (callId == null || currentCall?.id == callId) {
                 instance.runOnUiThread {
                     instance.finish()
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun InCallScreen(
+    call: ActiveCallState,
+    onEnd: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F172A))
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        ActiveCallCard(
+            call = call,
+            initialKeypadOpen = true,
+        )
     }
 }
 

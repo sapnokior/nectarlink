@@ -477,17 +477,13 @@ fun PcMirrorView(
 
         if (isFullScreen) {
             appliedFullScreen = true
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             controller.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller.hide(WindowInsetsCompat.Type.systemBars())
         } else if (appliedFullScreen) {
             controller.show(WindowInsetsCompat.Type.systemBars())
-            activity.requestedOrientation = if (!autoRotateEnabled || suppressAutoEnterInLandscape) {
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            } else {
-                initialRequestedOrientation
-            }
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
     }
 

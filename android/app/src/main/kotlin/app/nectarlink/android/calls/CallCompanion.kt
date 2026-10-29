@@ -37,6 +37,8 @@ class CallCompanion : InCallService() {
         super.onDestroy()
     }
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
     override fun onCallAdded(call: Call) {
         call.registerCallback(callback)
         this.call = call
@@ -46,6 +48,9 @@ class CallCompanion : InCallService() {
     override fun onCallRemoved(call: Call) {
         call.unregisterCallback(callback)
         if (this.call === call) this.call = calls.lastOrNull { it !== call }
+        if (this.call == null) {
+            ActiveCallManager.clearCall()
+        }
         changed()
     }
 
@@ -64,6 +69,20 @@ class CallCompanion : InCallService() {
         if (state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING) {
             PhoneCalls.callAnswered(connectTime)
             PhoneCalls.controlsChanged()
+            @Suppress("DEPRECATION")
+            val audio = callAudioState
+            ActiveCallManager.updateLocalCall(
+                callId = call?.details?.handle?.toString() ?: "local_call",
+                number = num,
+                name = nm,
+                since = connectTime ?: System.currentTimeMillis(),
+                isMuted = audio?.isMuted == true,
+                isSpeaker = audio?.route == CallAudioState.ROUTE_SPEAKER,
+                isHeld = state == Call.STATE_HOLDING,
+                canHold = call?.details?.can(Call.Details.CAPABILITY_HOLD) == true,
+            )
+        } else if (state == Call.STATE_DISCONNECTED || state == null) {
+            ActiveCallManager.clearCall()
         }
     }
 
@@ -136,7 +155,9 @@ class CallCompanion : InCallService() {
     private fun dtmf(digit: Char): Boolean {
         val call = call ?: return false
         call.playDtmfTone(digit)
-        call.stopDtmfTone()
+        mainHandler.postDelayed({
+            runCatching { call.stopDtmfTone() }
+        }, 160)
         return true
     }
 

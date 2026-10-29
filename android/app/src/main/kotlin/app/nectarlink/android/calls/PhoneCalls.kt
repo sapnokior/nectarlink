@@ -231,6 +231,21 @@ internal class PhoneCalls(
             since = since.takeIf { phase == CallPhase.ACTIVE },
             controls = CallCompanion.controls(),
         )
+        if (phase == CallPhase.ACTIVE) {
+            val ctrl = callObj.controls
+            ActiveCallManager.updateLocalCall(
+                callId = id,
+                number = number,
+                name = name,
+                since = since ?: System.currentTimeMillis(),
+                isMuted = ctrl?.muted == true,
+                isSpeaker = ctrl?.speaker == true,
+                isHeld = ctrl?.held == true,
+                canHold = ctrl?.canHold ?: true,
+            )
+        } else if (phase == CallPhase.ENDED) {
+            ActiveCallManager.clearCall(id)
+        }
         onChange(callObj)
         PeerCallNotifications.broadcastUdp(android.os.Build.MODEL, callObj)
     }
@@ -641,6 +656,9 @@ internal class PhoneCalls(
         fun canDial(context: Context) =
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) &&
                 (granted(context, Manifest.permission.CALL_PHONE) || canFollow(context))
+
+        /** Convenience function to place or dial a call. */
+        fun dial(context: Context, number: String): Boolean = PhoneCalls(context, {}).dial(number)
 
         /** Whether everything the card asks for is granted. */
         fun hasAll(context: Context) = permissions.all { granted(context, it) }

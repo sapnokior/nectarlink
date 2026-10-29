@@ -144,6 +144,7 @@
 
         <activity
             android:name=".ui.MainActivity"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden"
             android:exported="true"
             android:launchMode="singleTask"
@@ -208,6 +209,7 @@
 
         <activity
             android:name=".calls.IncomingCallActivity"
+            android:screenOrientation="portrait"
             android:exported="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
@@ -369,6 +371,7 @@
         <!-- Play on phone: a PC player's picture and sound, full screen. -->
         <activity
             android:name=".ui.watch.WatchActivity"
+            android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden"
             android:exported="false"
             android:launchMode="singleTop"
@@ -376,6 +379,7 @@
 
         <activity
             android:name=".camera.ContinuityCameraActivity"
+            android:screenOrientation="portrait"
             android:exported="false"
             android:showWhenLocked="true"
             android:turnScreenOn="true"

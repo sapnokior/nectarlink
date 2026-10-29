@@ -22,6 +22,7 @@ class NectarlinkApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        app.nectarlink.android.calls.ActiveCallManager.init(this)
         // Before the core starts: its network code reads the phone's DNS servers.
         app.nectarlink.android.core.AndroidContext.install(this)
         // Before Elevated: it waits while paused for a banking app.

@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -113,6 +114,7 @@ class MainActivity : ComponentActivity() {
      * and pairing grants that PC this phone's notifications and messages.
      */
     private var pendingPairingLink by mutableStateOf<String?>(null)
+    private var requestedTab by mutableStateOf<String?>(null)
     private var requestedWebcamPc by mutableStateOf<String?>(null)
     private var requestedWebcamAutoStart by mutableStateOf(false)
     private var requestedWebcamHeight by mutableStateOf<Int?>(null)
@@ -125,6 +127,7 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val core = (application as NectarlinkApplication).core
@@ -145,6 +148,7 @@ class MainActivity : ComponentActivity() {
             handleDeckIntent(intent)
             handleRecordIntent(intent)
             handleWebcamIntent(intent)
+            handleTabIntent(intent)
         }
 
         setContent {
@@ -189,6 +193,8 @@ class MainActivity : ComponentActivity() {
                             requestedWebcamCamera = null
                         },
                         onActiveRemoteChanged = { activeRemotePcId = it },
+                        requestedTab = requestedTab,
+                        onTabConsumed = { requestedTab = null },
                     )
                     pendingPairingLink?.let { link ->
                         val pcName = remember(link) {
@@ -237,6 +243,7 @@ class MainActivity : ComponentActivity() {
         handleDeckIntent(intent)
         handleRecordIntent(intent)
         handleWebcamIntent(intent)
+        handleTabIntent(intent)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -302,6 +309,11 @@ class MainActivity : ComponentActivity() {
         requestedWebcamPc = pc
     }
 
+    private fun handleTabIntent(intent: Intent?) {
+        val t = intent?.getStringExtra("select_tab") ?: return
+        requestedTab = t
+    }
+
     /**
      * A PC's pairing QR code opened from another app (e.g. the camera).
      * Each link holds a one-time secret, so a link is used once: Android
@@ -317,7 +329,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab { Home, Calls, Messages, Settings }
+private enum class Tab { Home, Contacts, Calls, Messages, Settings }
 
 private sealed interface ScreenRoute {
     data object Starting : ScreenRoute
@@ -352,8 +364,17 @@ private fun App(
     requestedWebcamCamera: String?,
     onWebcamConsumed: () -> Unit,
     onActiveRemoteChanged: (String?) -> Unit,
+    requestedTab: String? = null,
+    onTabConsumed: () -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
+
+    LaunchedEffect(requestedTab) {
+        if (requestedTab == "calls") {
+            tab = Tab.Calls
+            onTabConsumed()
+        }
+    }
     var insideChatThread by rememberSaveable { mutableStateOf(false) }
     var pairing by rememberSaveable { mutableStateOf(false) }
     var manualWalkthroughOpen by rememberSaveable { mutableStateOf(false) }
@@ -931,6 +952,14 @@ private fun App(
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
+                            Tab.Contacts -> saveableStateHolder.SaveableStateProvider("tab_contacts") {
+                                app.nectarlink.android.ui.contacts.ContactsScreen(
+                                    state = state,
+                                    core = core,
+                                    onNavigateToCalls = { tab = Tab.Calls },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                             Tab.Calls -> saveableStateHolder.SaveableStateProvider("tab_calls") {
                                 app.nectarlink.android.ui.calls.CallsScreen(
                                     state = state,
@@ -1059,11 +1088,20 @@ private fun FloatingBottomPillDock(
                 reducedMotion = reducedMotion,
             )
             FloatingDockTabPill(
+                selected = selectedTab == Tab.Contacts,
+                onClick = { onSelectTab(Tab.Contacts) },
+                iconRes = R.drawable.ic_contacts,
+                label = stringResource(R.string.contacts_tab_title),
+                statusDotColor = null,
+                reducedMotion = reducedMotion,
+            )
+            val activeCall by app.nectarlink.android.calls.ActiveCallManager.activeCall.collectAsStateWithLifecycle()
+            FloatingDockTabPill(
                 selected = selectedTab == Tab.Calls,
                 onClick = { onSelectTab(Tab.Calls) },
                 iconRes = R.drawable.ic_call,
                 label = "Calls",
-                statusDotColor = null,
+                statusDotColor = if (activeCall != null) Color(0xFF2E7D32) else null,
                 reducedMotion = reducedMotion,
             )
             FloatingDockTabPill(
@@ -1146,7 +1184,7 @@ private fun FloatingDockTabPill(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.foundation.layout.Row(

@@ -567,17 +567,7 @@ fun HomeScreen(
                 ) { ask.launch(LocalNetwork.PERMISSION) }
             }
         }
-        if (state.remoteInputRequested && !state.inputAccess && !state.elevated) {
-            item(key = "remote_input_requested", contentType = "setup") {
-                val context = LocalContext.current
-                SetupCard(
-                    title = stringResource(R.string.remote_input_requested_title),
-                    text = stringResource(R.string.remote_input_requested_text),
-                ) {
-                    runCatching { context.startActivity(InputService.settingsIntent()) }
-                }
-            }
-        }
+
         if (state.devices.none { !it.isAndroid }) {
             item(key = "no_paired_pc_card", contentType = "empty_pc") {
                 NoPairedPcCard(
@@ -640,7 +630,6 @@ fun HomeScreen(
             var missingCount = 0
             if (!state.backgroundUnrestricted) missingCount++
             if (!state.notificationAccess) missingCount++
-            if (!state.inputAccess) missingCount++
             if (!state.smsAccess) missingCount++
             if (!state.callAccess) missingCount++
             if (!state.contactsAccess) missingCount++
@@ -1112,14 +1101,7 @@ private fun PermissionsSetupCard(
                         runCatching { context.startActivity(NotificationListener.settingsIntent(context)) }
                     }
                 }
-                if (!state.inputAccess) {
-                    SetupCard(
-                        stringResource(R.string.control_title),
-                        stringResource(R.string.control_off),
-                    ) {
-                        runCatching { context.startActivity(InputService.settingsIntent()) }
-                    }
-                }
+
                 if (!state.smsAccess) {
                     SetupCard(
                         stringResource(R.string.sms_title),

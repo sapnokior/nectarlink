@@ -7,11 +7,14 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.FileObserver
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.Settings
@@ -45,6 +48,26 @@ class PhoneStorage(
 ) {
     private val context = context.applicationContext
     private val observers = LinkedHashMap<String, FileObserver>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var mediaObserver: ContentObserver? = null
+    private val debounceRunnables = HashMap<String, Runnable>()
+
+    private fun postDebouncedChanged(relPath: String) {
+        synchronized(this) {
+            val existing = debounceRunnables[relPath]
+            if (existing != null) {
+                mainHandler.removeCallbacks(existing)
+            }
+            val runnable = Runnable {
+                synchronized(this@PhoneStorage) {
+                    debounceRunnables.remove(relPath)
+                }
+                onChanged(relPath)
+            }
+            debounceRunnables[relPath] = runnable
+            mainHandler.postDelayed(runnable, 350L)
+        }
+    }
 
     /** Lists entries in `path` (`""` for the root). */
     fun list(path: String): List<StorageEntry> {
@@ -237,11 +260,115 @@ class PhoneStorage(
     }
 
     @Synchronized
+    fun startWatching() {
+        if (!hasAllFilesAccess(context)) return
+
+        // 1. Pre-watch critical user directories so inotify is live immediately
+        val root = sharedRoot()
+        val commonDirs = listOf(
+            "",
+            "Files by Google/Scanned",
+            "Documents",
+            "Download",
+            "DCIM",
+            "DCIM/Camera",
+            "Pictures",
+            "Recordings",
+        )
+        for (rel in commonDirs) {
+            val f = if (rel.isEmpty()) root else File(root, rel)
+            if (f.exists() && f.isDirectory) {
+                watchDirectory(rel, f)
+                postDebouncedChanged(rel)
+            }
+        }
+
+        // 2. Global MediaStore ContentObserver to catch file additions/updates from any app
+        if (mediaObserver == null) {
+            val observer = object : ContentObserver(mainHandler) {
+                override fun onChange(selfChange: Boolean, uri: Uri?) {
+                    handleMediaStoreChange(uri)
+                }
+            }
+            runCatching {
+                context.contentResolver.registerContentObserver(
+                    MediaStore.Files.getContentUri("external"),
+                    true,
+                    observer,
+                )
+                mediaObserver = observer
+            }
+        }
+    }
+
+    private fun handleMediaStoreChange(uri: Uri?) {
+        val root = sharedRoot()
+        val rootPath = root.absolutePath
+
+        fun processPath(data: String?) {
+            if (data.isNullOrEmpty()) return
+            val f = File(data)
+            val parent = f.parentFile ?: return
+            val parentPath = parent.absolutePath
+            if (parentPath.startsWith(rootPath)) {
+                val rel = parentPath.removePrefix(rootPath)
+                    .trimStart('/', '\\')
+                    .replace('\\', '/')
+                postDebouncedChanged(rel)
+            }
+        }
+
+        var resolved = false
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(MediaStore.MediaColumns.DATA),
+                    null,
+                    null,
+                    null,
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        processPath(c.getString(0))
+                        resolved = true
+                    }
+                }
+            }
+        }
+
+        if (!resolved) {
+            runCatching {
+                val projection = arrayOf(MediaStore.MediaColumns.DATA)
+                val order = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC LIMIT 5"
+                context.contentResolver.query(
+                    MediaStore.Files.getContentUri("external"),
+                    projection,
+                    null,
+                    null,
+                    order,
+                )?.use { c ->
+                    while (c.moveToNext()) {
+                        processPath(c.getString(0))
+                    }
+                }
+            }
+        }
+    }
+
+    @Synchronized
     fun stopWatching() {
         for (obs in observers.values) {
             obs.stopWatching()
         }
         observers.clear()
+        mediaObserver?.let {
+            runCatching { context.contentResolver.unregisterContentObserver(it) }
+        }
+        mediaObserver = null
+        for (r in debounceRunnables.values) {
+            mainHandler.removeCallbacks(r)
+        }
+        debounceRunnables.clear()
     }
 
     @Synchronized
@@ -261,7 +388,7 @@ class PhoneStorage(
         val observer = object : FileObserver(dir.absolutePath, mask) {
             override fun onEvent(event: Int, file: String?) {
                 if (file != null && file.startsWith(".nectarlink")) return
-                onChanged(relPath)
+                postDebouncedChanged(relPath)
             }
         }
         runCatching {
@@ -517,7 +644,7 @@ class PhoneStorage(
     companion object {
         private const val PREFS_NAME = "nectarlink_storage_saf"
         private const val KEY_TREES = "trees"
-        private const val MAX_WATCHED_DIRS = 16
+        private const val MAX_WATCHED_DIRS = 128
         const val TOGGLE_NAME = "storage"
 
         private val MEDIA_EXTENSIONS = setOf(

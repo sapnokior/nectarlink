@@ -71,6 +71,7 @@ import kotlinx.coroutines.delay
  */
 class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val pcId = intent.getStringExtra(EXTRA_PC)

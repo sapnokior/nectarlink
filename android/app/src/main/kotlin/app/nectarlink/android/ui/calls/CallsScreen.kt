@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nectarlink.android.R
+import app.nectarlink.android.calls.ActiveCallManager
 import app.nectarlink.android.core.Core
 import app.nectarlink.android.core.CoreState
 import app.nectarlink.core.CallLogEntry
@@ -79,6 +81,7 @@ fun CallsScreen(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    val activeCall by ActiveCallManager.activeCall.collectAsState()
     val availableDevices = state.devices.filter { it.isAndroid }
     var selectedDevice by remember(availableDevices) {
         mutableStateOf(availableDevices.firstOrNull { it.online } ?: availableDevices.firstOrNull())
@@ -137,6 +140,16 @@ fun CallsScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // Active In-Call Card with DTMF Keypad for IVR
+            if (activeCall != null) {
+                item(key = "active_call_card") {
+                    ActiveCallCard(
+                        call = activeCall!!,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                }
+            }
+
             // Google Phone Search Bar
             item {
                 Surface(

@@ -7,12 +7,23 @@ plugins {
 }
 
 // The version comes from the workspace (Cargo.toml), like the PC app's.
-val appVersion: String = rootProject.file("../Cargo.toml").readLines()
-    .first { it.startsWith("version = ") }
-    .substringAfter('"').substringBefore('"')
+val cargoToml = listOf(
+    rootProject.file("Cargo.toml"),
+    rootProject.file("../Cargo.toml")
+).firstOrNull { it.exists() }
+
+val appVersion: String = cargoToml?.readLines()
+    ?.firstOrNull { it.startsWith("version = ") }
+    ?.substringAfter('"')?.substringBefore('"')
+    ?: "1.0.0"
 /** 1.2.3 → 1002003: every release must have a larger code than the last. */
-val appVersionCode: Int = appVersion.substringBefore('-').split('.').map(String::toInt)
-    .let { (major, minor, patch) -> major * 1_000_000 + minor * 1_000 + patch }
+val appVersionCode: Int = appVersion.substringBefore('-').split('.').mapNotNull { it.toIntOrNull() }
+    .let { parts ->
+        val major = parts.getOrNull(0) ?: 1
+        val minor = parts.getOrNull(1) ?: 0
+        val patch = parts.getOrNull(2) ?: 0
+        major * 1_000_000 + minor * 1_000 + patch
+    }
 
 android {
     namespace = "app.nectarlink.android"
@@ -157,7 +168,12 @@ abstract class BundleFonts : DefaultTask() {
     }
 }
 
-val workspaceDir: Directory = rootProject.layout.projectDirectory.dir("..")
+val workspaceDirFile: File = listOf(
+    rootProject.file("."),
+    rootProject.file("..")
+).firstOrNull { File(it, "Cargo.toml").exists() } ?: rootProject.file(".")
+
+val workspaceDir: Directory = objects.directoryProperty().apply { set(workspaceDirFile) }.get()
 val rustAbis: List<String> =
     (findProperty("nectarlink.abis") as String?)?.split(",")?.map(String::trim) ?: listOf("arm64-v8a")
 

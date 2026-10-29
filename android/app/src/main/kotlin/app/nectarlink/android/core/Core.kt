@@ -467,6 +467,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
                 if (PhoneCalls.canFollow(context) || PhoneCalls.canReadLog(context)) calls.start()
                 if (PhoneContacts.canRead(context)) contacts.start()
                 if (PhoneSms.canRead(context)) sms.start()
+                if (PhoneStorage.hasAllFilesAccess(context)) storage.startWatching()
                 _state
                     .map { s -> s.devices.any { it.online } to s.photoAccess }
                     .distinctUntilChanged()
@@ -475,6 +476,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
                             signal.start()
                             toggles.start()
                             if (hasPhotoAccess) photos.start() else photos.stop()
+                            if (PhoneStorage.hasAllFilesAccess(context)) storage.startWatching()
                         } else {
                             signal.stop()
                             toggles.stop()
@@ -560,7 +562,7 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
                     val writeSettingsAccess = PhoneToggles.hasWriteSettings(context)
                     val storageAllFilesAccess = PhoneStorage.hasAllFilesAccess(context)
                     val storageSafFolders = PhoneStorage.safFolders(context).map { it.name }
-                    if (!storageAllFilesAccess) storage.stopWatching()
+                    if (!storageAllFilesAccess) storage.stopWatching() else storage.startWatching()
                     val localNetwork = LocalNetwork.granted(context)
                     if (localNetwork && !_state.value.localNetwork) {
                         // Just allowed: reach the PCs now rather than at the next retry.

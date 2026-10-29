@@ -143,9 +143,17 @@ class PeerCallNotifications(private val context: Context) {
                         else -> "earpiece"
                     }
                 }
+                ActiveCallManager.updatePeerCall(
+                    deviceId,
+                    effectiveName,
+                    call,
+                    optimisticMuted[deviceId],
+                    optimisticAudioRoute[deviceId],
+                )
                 showActive(deviceId, effectiveName, call)
             }
             CallPhase.ENDED -> {
+                ActiveCallManager.clearCall(call.id)
                 cancelCall(deviceId, call.id)
                 if (call.missed) {
                     showMissed(deviceId, effectiveName, call)
@@ -240,9 +248,6 @@ class PeerCallNotifications(private val context: Context) {
         val calls = activeCallsByDevice.getOrPut(deviceId) { ConcurrentHashMap.newKeySet() }
         calls.add(call.id)
 
-        // Dismiss the incoming call screen if it was open on lock screen
-        IncomingCallActivity.dismissIfActive(call.id)
-
         val caller = call.name?.takeIf(String::isNotBlank)
             ?: call.number?.takeIf(String::isNotBlank)
             ?: if (!call.incoming) "Outgoing call" else contextApp.getString(R.string.active_call_title)
@@ -260,7 +265,11 @@ class PeerCallNotifications(private val context: Context) {
         val tapIntent = PendingIntent.getActivity(
             contextApp,
             notificationId(deviceId),
-            Intent(contextApp, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            Intent(contextApp, MainActivity::class.java).apply {
+                action = Intent.ACTION_MAIN
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra("select_tab", "calls")
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -482,6 +491,7 @@ class PeerCallNotifications(private val context: Context) {
     }
 
     fun cancelCall(deviceId: String, callId: String) {
+        ActiveCallManager.clearCall(callId)
         activeCallsByDevice[deviceId]?.remove(callId)
         optimisticMuted.remove(deviceId)
         optimisticAudioRoute.remove(deviceId)
@@ -493,6 +503,7 @@ class PeerCallNotifications(private val context: Context) {
     }
 
     fun onDeviceOffline(deviceId: String) {
+        ActiveCallManager.clearCall()
         activeCallsByDevice.remove(deviceId)
         optimisticMuted.remove(deviceId)
         optimisticAudioRoute.remove(deviceId)
@@ -552,10 +563,12 @@ class PeerCallNotifications(private val context: Context) {
             }
             val last = notif.lastCallByDevice[deviceId] ?: return
             val name = notif.lastDeviceNameByDevice[deviceId].orEmpty()
-            if (answered == true) {
+            val effectiveCall = if (answered == true) {
                 val activeCall = last.copy(state = CallPhase.ACTIVE, since = notif.optimisticAnswerTime[deviceId])
                 broadcastUdp(name, activeCall)
-            }
+                activeCall
+            } else last
+            ActiveCallManager.updatePeerCall(deviceId, name, effectiveCall, muted, route)
             notif.showActive(deviceId, name, last)
         }
 
