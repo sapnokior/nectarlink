@@ -36,10 +36,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install cargo-ndk and uniffi-bindgen
+      - name: Install cargo-ndk and build uniffi-bindgen
         run: |
           cargo install --locked cargo-ndk
-          cargo install --locked uniffi_bindgen --version 0.32.2
+          cargo build --release -p nectarlink-ffi --bin uniffi-bindgen
+          echo "$PWD/target/release" >> $GITHUB_PATH
 
       - uses: actions/setup-java@v4
         with:
