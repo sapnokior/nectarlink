@@ -39,7 +39,7 @@ jobs:
       - name: Install cargo-ndk and build uniffi-bindgen
         run: |
           cargo install --locked cargo-ndk
-          cargo build --release -p nectarlink-ffi --bin uniffi-bindgen
+          cargo build --release -p nectarlink-ffi --bin uniffi-bindgen --features bindgen
           echo "$PWD/target/release" >> $GITHUB_PATH
 
       - uses: actions/setup-java@v4
