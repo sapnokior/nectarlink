@@ -1,0 +1,19 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Local SDK properties
+local.properties
+
+# IDE files
+.idea/
+*.iml
+.navigation/
+
+# Rust build outputs
+/target/
+
+# OS files
+.DS_Store
+Thumbs.db
