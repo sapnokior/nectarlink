@@ -1,0 +1,88 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (release or debug)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  android:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain and Android targets
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add aarch64-linux-android armv7-linux-androideabi
+
+      - name: Install cargo-ndk
+        run: cargo install --locked cargo-ndk
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: "16111833"
+          packages: "platforms;android-37.0 ndk;30.0.16248370 build-tools;37.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          NECTARLINK_KEYSTORE: ${{ runner.temp }}/release.jks
+          NECTARLINK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          BUILD_TYPE="${{ inputs.build_type }}"
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            ./gradlew --no-daemon assembleDebug -Pnectarlink.abis=arm64-v8a,armeabi-v7a
+          else
+            ./gradlew --no-daemon assembleRelease -Pnectarlink.abis=arm64-v8a,armeabi-v7a
+          fi
+
+      - name: Prepare APK output
+        run: |
+          mkdir -p out
+          find android/app/build/outputs/apk -type f -name "*.apk" -exec cp {} out/ \;
+          ls -la out/
+
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nectarlink-apk
+          path: out/*.apk
+          retention-days: 14
