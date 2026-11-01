@@ -548,6 +548,7 @@ fn main() -> ExitCode {
     std::thread::spawn(notifications::prune_images);
     watch_network();
     start_toasts();
+    pc_notifications::start();
     clipboard::start();
     win::smtc::start(media::on_flyout);
     win::media_sessions::start(media::local_changed);
