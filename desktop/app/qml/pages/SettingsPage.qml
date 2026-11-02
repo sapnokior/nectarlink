@@ -169,7 +169,9 @@ Item {
         storage: qsTr("File Explorer integration"),
         remote_input: qsTr("Remote mouse, keyboard & Deck"),
         commands: qsTr("Run Deck shell commands"),
-        remote_files: qsTr("Remote PC file access")
+        remote_files: qsTr("Remote PC file access"),
+        mic: qsTr("Microphone"),
+        away_mode: qsTr("Away mode")
     })
 
     readonly property var toggleIcons: ({
@@ -190,7 +192,9 @@ Item {
         storage: Icons.folder,
         remote_input: Icons.deck,
         commands: Icons.terminal,
-        remote_files: Icons.globe
+        remote_files: Icons.globe,
+        mic: Icons.mic,
+        away_mode: Icons.coffee
     })
 
     readonly property var toggleDescriptions: ({

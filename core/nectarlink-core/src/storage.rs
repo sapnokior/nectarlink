@@ -117,6 +117,7 @@ impl StorageState {
         v
     }
 
+    #[allow(dead_code)]
     pub fn peers_watching(&mut self, path: &str, now: Instant) -> Vec<DeviceId> {
         let mut peers = Vec::new();
         for (peer, folders) in &self.open_folders {
@@ -235,7 +236,7 @@ pub(crate) async fn notify_changed(shared: &Arc<Shared>, path: String) {
             }
             let key = (peer, path.clone());
             let should_send = {
-                let mut st = shared.storage.lock().unwrap_or_else(|e| e.into_inner());
+                let st = shared.storage.lock().unwrap_or_else(|e| e.into_inner());
                 st.last_changed
                     .get(&key)
                     .is_none_or(|prev| now.saturating_duration_since(*prev) >= CHANGED_DEBOUNCE)

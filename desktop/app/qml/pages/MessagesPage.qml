@@ -143,6 +143,18 @@ Item {
     Component.onCompleted: load()
     Component.onDestruction: Messages.closeThread()
 
+    Timer {
+        id: liveRefresh
+        interval: 10000
+        repeat: true
+        running: page.active && page.ready && page.deviceId.length > 0
+        onTriggered: {
+            if (page.active && page.ready && page.deviceId.length > 0) {
+                Messages.refresh()
+            }
+        }
+    }
+
     Shortcut {
         sequence: "Esc"
         enabled: page.active && (!!page.openThread || page.composing)
