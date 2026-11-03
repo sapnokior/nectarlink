@@ -33,7 +33,8 @@ Item {
         anchors.leftMargin: icon.visible ? 14 : 0
         anchors.right: row.stackTrailing ? parent.right : trailingSlot.left
         anchors.rightMargin: row.stackTrailing ? 0 : 16
-        y: row.stackTrailing ? 12 : Math.round((row.height - height) / 2)
+        anchors.verticalCenter: row.stackTrailing ? undefined : parent.verticalCenter
+        y: row.stackTrailing ? 12 : undefined
         spacing: 2
         Txt {
             width: parent.width
@@ -57,8 +58,11 @@ Item {
         id: trailingSlot
         anchors.left: row.stackTrailing ? texts.left : undefined
         anchors.right: row.stackTrailing ? undefined : parent.right
-        y: row.stackTrailing ? (texts.y + texts.implicitHeight + 10) : Math.round((row.height - height) / 2)
-        width: childrenRect.width
-        height: childrenRect.height
+        anchors.verticalCenter: row.stackTrailing ? undefined : parent.verticalCenter
+        y: row.stackTrailing ? (texts.y + texts.implicitHeight + 10) : undefined
+        implicitWidth: childrenRect.width
+        implicitHeight: childrenRect.height
+        width: implicitWidth
+        height: implicitHeight
     }
 }

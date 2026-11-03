@@ -1639,6 +1639,11 @@ impl Node {
         self.shared.id
     }
 
+    /// Checkpoints the SQLite store WAL log to reclaim disk space.
+    pub fn checkpoint_store(&self) -> Result<()> {
+        self.shared.store.checkpoint()
+    }
+
     /// Subscribes to node events. Each subscriber gets its own stream.
     pub fn events(&self) -> broadcast::Receiver<NodeEvent> {
         self.shared.events.subscribe()

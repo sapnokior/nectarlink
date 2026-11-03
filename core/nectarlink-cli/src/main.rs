@@ -2037,6 +2037,7 @@ impl Platform for TerminalPlatform {
             C::Silence => println!("Silenced."),
             C::Mute(on) => controls.muted = on,
             C::Speaker(on) => controls.speaker = on,
+            C::Bluetooth(on) => controls.bluetooth = on,
             C::Hold(on) => controls.held = on,
             C::Dtmf(digit) => println!("Key {digit}."),
             C::Volume(up) => println!("Volume {}.", if up { "up" } else { "down" }),

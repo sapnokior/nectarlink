@@ -55,7 +55,9 @@ NativeWindow::NativeWindow(QWindow *parent)
     : QQuickWindow(parent)
 {
     // Qt removes the system title bar and lets content fill the window.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 12, 0)
     setFlags(flags() | Qt::ExpandedClientAreaHint);
+#endif
     setColor(Qt::transparent);
     // Drop the scene graph and D3D/RHI resources when the window is hidden or
     // closed to the tray instead of keeping GPU buffers in private commit.

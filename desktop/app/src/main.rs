@@ -545,7 +545,12 @@ fn main() -> ExitCode {
         state::Changes::APPS | state::Changes::HISTORY
     });
     notification_store::start(data_dir.clone());
-    std::thread::spawn(notifications::prune_images);
+    std::thread::spawn(|| {
+        notifications::prune_images();
+        if let Some(node) = core_host::node() {
+            let _ = node.checkpoint_store();
+        }
+    });
     watch_network();
     start_toasts();
     pc_notifications::start();

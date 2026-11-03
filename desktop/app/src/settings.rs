@@ -9,6 +9,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 const FILE_NAME: &str = "desktop-settings.json";
 
@@ -607,6 +608,29 @@ impl Settings {
         );
     }
 
+    /// Attempts to salvage valid user settings from a JSON object when full
+    /// deserialization fails, skipping any malformed fields.
+    fn recover_lenient(text: &str) -> Option<Settings> {
+        let Value::Object(map) = serde_json::from_str::<Value>(text).ok()? else {
+            return None;
+        };
+        let def = Settings::default();
+        let Value::Object(base_map) = serde_json::to_value(&def).ok()? else {
+            return None;
+        };
+        let mut working_map = base_map;
+        for (key, val) in map {
+            let mut candidate = working_map.clone();
+            candidate.insert(key.clone(), val);
+            if serde_json::from_value::<Settings>(Value::Object(candidate.clone())).is_ok() {
+                working_map = candidate;
+            } else {
+                tracing::warn!(field = %key, "settings field invalid; falling back to default");
+            }
+        }
+        serde_json::from_value::<Settings>(Value::Object(working_map)).ok()
+    }
+
     /// Loads the settings, falling back to defaults if the file is missing.
     /// A corrupt file is set aside (not deleted) so it can be inspected.
     pub fn load(dir: &Path) -> Settings {
@@ -622,9 +646,16 @@ impl Settings {
         match serde_json::from_str::<Settings>(&text) {
             Ok(settings) => settings.sanitized(),
             Err(e) => {
-                tracing::warn!(error = %e, "settings file is corrupt; using defaults");
-                let _ = fs::rename(&path, path.with_extension("json.corrupt"));
-                Settings::default()
+                if let Some(recovered) = Self::recover_lenient(&text) {
+                    tracing::warn!(error = %e, "repaired partially invalid settings file; preserving valid preferences");
+                    let clean = recovered.sanitized();
+                    let _ = clean.save(dir);
+                    clean
+                } else {
+                    tracing::warn!(error = %e, "settings file is corrupt; using defaults");
+                    let _ = fs::rename(&path, path.with_extension("json.corrupt"));
+                    Settings::default()
+                }
             }
         }
     }
@@ -738,6 +769,25 @@ mod tests {
         fs::write(dir.path().join(FILE_NAME), "{ not json").unwrap();
         assert_eq!(Settings::load(dir.path()), Settings::default());
         assert!(dir.path().join("desktop-settings.json.corrupt").exists());
+    }
+
+    #[test]
+    fn recovers_from_partially_corrupted_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = Settings::path(dir.path());
+        let bad_json = r#"{
+            "theme": "graphite",
+            "seed": "ocean",
+            "windowWidth": "NOT_A_NUMBER",
+            "autoCopyOtp": true
+        }"#;
+        fs::write(&path, bad_json).unwrap();
+        let loaded = Settings::load(dir.path());
+        assert_eq!(loaded.theme, Theme::Graphite);
+        assert_eq!(loaded.seed, "ocean");
+        assert!(loaded.auto_copy_otp);
+        assert_eq!(loaded.window_width, default_window_width());
+        assert!(!dir.path().join("desktop-settings.json.corrupt").exists());
     }
 
     #[test]

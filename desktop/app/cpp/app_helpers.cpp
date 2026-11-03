@@ -185,6 +185,12 @@ int32_t load_bundled_fonts()
         if (QFontDatabase::addApplicationFont(dir.filePath(name)) >= 0)
             ++loaded;
     }
+    QFont::insertSubstitutions(QStringLiteral("Figtree"),
+                               {QStringLiteral("Segoe UI"),
+                                QStringLiteral("Nirmala UI"),
+                                QStringLiteral("Segoe UI Emoji"),
+                                QStringLiteral("Segoe UI Symbol"),
+                                QStringLiteral("Arial")});
     return loaded;
 }
 

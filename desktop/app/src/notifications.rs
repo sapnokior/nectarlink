@@ -177,8 +177,11 @@ fn save_images(event: &NodeEvent) -> Vec<((DeviceId, String), Option<std::path::
                 fnv(&[device.to_string().as_bytes(), n.key.as_bytes(), image].concat())
             );
             let path = dir.join(name);
+            if path.exists() {
+                return Some(((device, n.key.clone()), Some(path)));
+            }
             let saved = std::fs::create_dir_all(&dir)
-                .and_then(|()| if path.exists() { Ok(()) } else { std::fs::write(&path, image) });
+                .and_then(|()| std::fs::write(&path, image));
             match saved {
                 Ok(()) => Some(((device, n.key.clone()), Some(path))),
                 Err(e) => {

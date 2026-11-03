@@ -618,6 +618,7 @@ impl Store {
         conn.pragma_update(None, "busy_timeout", 5000)?;
         conn.pragma_update(None, "temp_store", "MEMORY")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
+        conn.pragma_update(None, "wal_autocheckpoint", 250)?;
         migrate(&conn)?;
         Ok(Store { conn: Mutex::new(conn), data_dir })
     }
@@ -625,6 +626,14 @@ impl Store {
     fn with<T>(&self, f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Result<T> {
         let conn = self.conn.lock().map_err(|_| Error::Internal("store lock poisoned".into()))?;
         f(&conn).map_err(Error::from)
+    }
+
+    /// Checkpoints the write-ahead log to keep the WAL file small.
+    pub fn checkpoint(&self) -> Result<()> {
+        self.with(|c| {
+            let _ = c.execute_batch("PRAGMA wal_checkpoint(PASSIVE);");
+            Ok(())
+        })
     }
 
     /// Adds or replaces a paired device.
