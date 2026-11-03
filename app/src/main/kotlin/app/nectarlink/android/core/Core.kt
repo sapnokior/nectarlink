@@ -20,6 +20,7 @@ import app.nectarlink.android.files.TransferNotifications
 import app.nectarlink.android.R
 import app.nectarlink.android.notifications.NotificationListener
 import app.nectarlink.android.notifications.PcNotificationPoster
+import app.nectarlink.android.notifications.TaskNotifications
 import app.nectarlink.android.calls.PeerCallNotifications
 import app.nectarlink.android.calls.CallCompanion
 import app.nectarlink.android.calls.PhoneCalls
@@ -245,10 +246,49 @@ class Core(context: Context, private val scope: CoroutineScope) : EventListener 
         }
     }
 
+    @Volatile private var lastLowBatteryAlertLevel: Int = 100
+
     private val battery = BatteryMonitor(this.context) { battery ->
         lastBattery = battery
         pushBatteryAndSignal()
         _state.update { it.copy(localBattery = battery) }
+
+        val level = battery.level.toInt()
+        val charging = battery.charging
+
+        if (!charging) {
+            if (level <= 20 && lastLowBatteryAlertLevel > 20) {
+                lastLowBatteryAlertLevel = level
+                sendLowBatteryAlert(level)
+            } else if (level <= 10 && lastLowBatteryAlertLevel > 10) {
+                lastLowBatteryAlertLevel = level
+                sendLowBatteryAlert(level)
+            }
+        } else {
+            if (level > 25) {
+                lastLowBatteryAlertLevel = 100
+            }
+        }
+    }
+
+    private fun sendLowBatteryAlert(level: Int) {
+        val notification = app.nectarlink.core.Notification(
+            key = "nectarlink_low_battery_$level",
+            app = context.packageName,
+            appName = "NectarLink",
+            title = "Low Battery Warning",
+            text = "Phone battery is low ($level% remaining). Please connect charger.",
+            sub = "Battery",
+            `when` = System.currentTimeMillis(),
+            actions = emptyList(),
+            silent = false,
+            icon = null,
+            image = null,
+            live = null,
+            conversation = null,
+        )
+        TaskNotifications.showLowBattery(context, level)
+        notificationPosted(notification)
     }
     private val signal = SignalMonitor(this.context) { snapshot ->
         val hadWifi = lastSignal.wifiBars != null

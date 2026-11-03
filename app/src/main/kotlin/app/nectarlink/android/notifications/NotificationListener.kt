@@ -75,7 +75,8 @@ class NotificationListener : NotificationListenerService() {
         val key = sbn.key
         work {
             limiter.cancel(key)
-            if (sent.remove(key)) core.notificationRemoved(key)
+            sent.remove(key)
+            core.notificationRemoved(key)
         }
     }
 

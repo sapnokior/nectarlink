@@ -29,8 +29,6 @@ enum class GuideHighlightTarget {
     HOME_PAIR_PC,
     HOME_PC_CARD,
     HOME_PC_AUDIO,
-    HOME_CLIPBOARD_HISTORY,
-    HOME_TIMELINE,
     HOME_SEND_QUEUE,
     HOME_SETUP_PERMISSIONS,
     HOME_LOCALSEND,
@@ -295,7 +293,7 @@ object FeaturesGuideCatalog {
             summaryRes = R.string.guide_clip_summary,
             keywords = listOf("clipboard", "copy", "paste", "history", "clips", "text", "image"),
             whereTextRes = R.string.guide_clip_where,
-            showMeTarget = GuideHighlightTarget.HOME_CLIPBOARD_HISTORY,
+            showMeTarget = GuideHighlightTarget.SETTINGS_CLIPBOARD,
             needsSummaryRes = R.string.guide_clip_needs,
             whatYouNeedResIds = listOf(
                 R.string.guide_clip_need_1,
@@ -595,7 +593,7 @@ object FeaturesGuideCatalog {
             summaryRes = R.string.guide_timeline_summary,
             keywords = listOf("timeline", "history", "activity", "log", "search", "resend"),
             whereTextRes = R.string.guide_timeline_where,
-            showMeTarget = GuideHighlightTarget.HOME_TIMELINE,
+            showMeTarget = GuideHighlightTarget.SETTINGS_DATA_STORAGE,
             needsSummaryRes = R.string.guide_timeline_needs,
             whatYouNeedResIds = listOf(
                 R.string.guide_timeline_need_1,

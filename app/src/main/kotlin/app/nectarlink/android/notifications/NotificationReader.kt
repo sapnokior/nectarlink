@@ -70,8 +70,13 @@ internal class NotificationReader(private val context: Context) {
         val n = sbn.notification
         if (sbn.packageName == context.packageName) return false
         val pkg = sbn.packageName.lowercase()
-        // Skip posting notifications from WhatsApp and Instagram to laptop
-        if (pkg == "com.whatsapp" || pkg == "com.whatsapp.w4b" || pkg.startsWith("com.whatsapp") || pkg.contains("instagram")) {
+        val appName = appName(sbn.packageName).lowercase()
+        val title = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.lowercase().orEmpty()
+
+        // Only mirror notifications from Discord and PowerShell. Block Chrome and all other apps.
+        val isDiscord = pkg.contains("discord") || appName.contains("discord")
+        val isPowerShell = pkg.contains("powershell") || appName.contains("powershell") || title.contains("powershell")
+        if (!isDiscord && !isPowerShell) {
             return false
         }
         val alwaysSkipped = Notification.FLAG_GROUP_SUMMARY or Notification.FLAG_LOCAL_ONLY

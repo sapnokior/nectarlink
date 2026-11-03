@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Cargo Build Desktop (Release)",
+      "type": "shell",
+      "command": "cargo build --release -p nectarlink-desktop",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Cargo Run Desktop",
+      "type": "shell",
+      "command": "cargo run --release -p nectarlink-desktop",
+      "problemMatcher": [
+        "$rustc"
+      ]
+    },
+    {
+      "label": "Cargo Check",
+      "type": "shell",
+      "command": "cargo check -p nectarlink-desktop",
+      "problemMatcher": [
+        "$rustc"
+      ]
+    }
+  ]
+}

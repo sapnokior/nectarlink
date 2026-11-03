@@ -1,0 +1,17 @@
+{
+  "rust-analyzer.cargo.extraEnv": {
+    "CMAKE_PREFIX_PATH": "C:\\Qt\\6.8.0\\msvc2022_64",
+    "QMAKE": "C:\\Qt\\6.8.0\\msvc2022_64\\bin\\qmake.exe",
+    "PATH": "C:\\Qt\\6.8.0\\msvc2022_64\\bin;${env:PATH}"
+  },
+  "rust-analyzer.runnables.extraEnv": {
+    "CMAKE_PREFIX_PATH": "C:\\Qt\\6.8.0\\msvc2022_64",
+    "QMAKE": "C:\\Qt\\6.8.0\\msvc2022_64\\bin\\qmake.exe",
+    "PATH": "C:\\Qt\\6.8.0\\msvc2022_64\\bin;${env:PATH}"
+  },
+  "terminal.integrated.env.windows": {
+    "CMAKE_PREFIX_PATH": "C:\\Qt\\6.8.0\\msvc2022_64",
+    "QMAKE": "C:\\Qt\\6.8.0\\msvc2022_64\\bin\\qmake.exe",
+    "PATH": "C:\\Qt\\6.8.0\\msvc2022_64\\bin;${env:PATH}"
+  }
+}

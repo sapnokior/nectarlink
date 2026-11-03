@@ -55,6 +55,7 @@ class PcNotificationPoster(context: Context) {
      */
     fun post(deviceId: String, n: MirroredNotification, fromPeer: Boolean = false, deviceName: String = "") {
         if (fromPeer && isCallNotification(n)) return
+        if (!shouldPostOnAndroid(n)) return
         val nm = manager ?: return
         if (!canPostNotifications()) return
         val keys = activeKeysByDevice.getOrPut(deviceId) { ConcurrentHashMap.newKeySet() }
@@ -138,6 +139,19 @@ class PcNotificationPoster(context: Context) {
             app == "phone" ||
             app == "dialer" ||
             app == "calls"
+    }
+
+    private fun shouldPostOnAndroid(n: MirroredNotification): Boolean {
+        val app = n.appName.lowercase()
+        val title = n.title?.lowercase().orEmpty()
+        val text = n.text?.lowercase().orEmpty()
+        val key = n.key.lowercase()
+
+        if (app.contains("whatsapp") || app.contains("whatsapp business")) return false
+        if (title.contains("call_ringing") || text.contains("call_ringing") || key.contains("call_ringing")) return false
+        if (title.contains("pause_pc_media") || text.contains("pause_pc_media") || key.contains("pause_pc_media")) return false
+
+        return true
     }
 
     fun cancelAll(deviceId: String) {

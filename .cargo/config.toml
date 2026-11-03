@@ -4,6 +4,8 @@
 [env]
 CXXFLAGS_x86_64_pc_windows_msvc = "/utf-8"
 CXXFLAGS_aarch64_pc_windows_msvc = "/utf-8"
+CMAKE_PREFIX_PATH = "C:\\Qt\\6.8.0\\msvc2022_64"
+QMAKE = "C:\\Qt\\6.8.0\\msvc2022_64\\bin\\qmake.exe"
 
 [alias]
 # Repository automation (code generation, checks): see tools/xtask.

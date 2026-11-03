@@ -46,8 +46,40 @@ object TaskNotifications {
         )
     }
 
+    fun showLowBattery(context: Context, level: Int) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        createChannels(context)
+        val manager = NotificationManagerCompat.from(context)
+        val open = PendingIntent.getActivity(
+            context,
+            9999,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = Notification.Builder(context, CHANNEL_DONE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Low Battery Warning")
+            .setContentText("Phone battery is low ($level% remaining). Please connect charger.")
+            .setSubText("Battery")
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .build()
+        runCatching {
+            manager.notify("nectarlink_low_battery", 0x424154, notification)
+        }
+    }
+
     /** Shows or updates a task notification from a paired PC; false if notifications are disabled. */
     fun show(context: Context, fromId: String, pcName: String, task: TaskNotify): Boolean {
+        val title = task.title.lowercase()
+        if (title.contains("call_ringing") || title.contains("pause_pc_media") || title.contains("task")) {
+            return false
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {

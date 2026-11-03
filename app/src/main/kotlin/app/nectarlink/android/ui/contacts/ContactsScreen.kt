@@ -13,6 +13,7 @@ import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.provider.ContactsContract.RawContacts
 import android.widget.Toast
+import app.nectarlink.android.contacts.ContactDefaultsPrefs
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -179,6 +180,25 @@ fun ContactsScreen(
             ActiveCallManager.startOutgoing(null, null, clean, contactName)
             callPhoneNumber(context, clean)
             onNavigateToCalls()
+        }
+    }
+
+    var contactForNumberSelection by remember { mutableStateOf<DeviceContact?>(null) }
+
+    fun handleContactCall(contact: DeviceContact) {
+        if (contact.numbers.isEmpty()) {
+            selectedContactForDetails = contact
+            return
+        }
+        if (contact.numbers.size == 1) {
+            initiateCall(contact.numbers.first().number, contact.name)
+            return
+        }
+        val defaultNum = ContactDefaultsPrefs.getDefaultNumber(context, contact.id)
+        if (defaultNum != null && contact.numbers.any { it.number == defaultNum }) {
+            initiateCall(defaultNum, contact.name)
+        } else {
+            contactForNumberSelection = contact
         }
     }
 
@@ -570,14 +590,7 @@ fun ContactsScreen(
                                 FavoriteQuickDialCard(
                                     contact = contact,
                                     context = context,
-                                    onClick = {
-                                        val num = contact.numbers.firstOrNull()?.number
-                                        if (num != null) {
-                                            initiateCall(num, contact.name)
-                                        } else {
-                                            selectedContactForDetails = contact
-                                        }
-                                    },
+                                    onClick = { handleContactCall(contact) },
                                     onLongClick = { selectedContactForDetails = contact },
                                 )
                             }
@@ -609,7 +622,7 @@ fun ContactsScreen(
                 items(filteredContacts, key = { it.id }) { contact ->
                     ContactRowCard(
                         contact = contact,
-                        onCall = { num -> initiateCall(num, contact.name) },
+                        onCall = { handleContactCall(contact) },
                         onMessage = { num -> messagePhoneNumber(context, num) },
                         onClick = { selectedContactForDetails = contact },
                     )
@@ -634,6 +647,15 @@ fun ContactsScreen(
                 onClose = { selectedContactForDetails = null },
             )
         }
+    }
+
+    contactForNumberSelection?.let { contact ->
+        SelectContactNumberDialog(
+            contact = contact,
+            context = context,
+            onDismiss = { contactForNumberSelection = null },
+            onCall = { num -> initiateCall(num, contact.name) },
+        )
     }
 }
 
@@ -1234,6 +1256,62 @@ private fun messagePhoneNumber(context: Context, number: String) {
         }
         context.startActivity(smsIntent)
     }
+}
+
+@Composable
+private fun SelectContactNumberDialog(
+    contact: DeviceContact,
+    context: Context,
+    onDismiss: () -> Unit,
+    onCall: (String) -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { androidx.compose.material3.Text("Call ${contact.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.Text("Select a number to call:", style = MaterialTheme.typography.bodyMedium)
+                contact.numbers.forEach { numInfo ->
+                    val isDefault = ContactDefaultsPrefs.getDefaultNumber(context, contact.id) == numInfo.number
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isDefault) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                ContactDefaultsPrefs.setDefaultNumber(context, contact.id, numInfo.number)
+                                onCall(numInfo.number)
+                                onDismiss()
+                            },
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                androidx.compose.material3.Text(numInfo.number, fontWeight = FontWeight.Bold)
+                                androidx.compose.material3.Text(numInfo.label ?: "Phone", style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (isDefault) {
+                                androidx.compose.material3.Text("Default", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            } else {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    ContactDefaultsPrefs.setDefaultNumber(context, contact.id, numInfo.number)
+                                    Toast.makeText(context, "Set as default for ${contact.name}", Toast.LENGTH_SHORT).show()
+                                }) {
+                                    androidx.compose.material3.Text("Set as default", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { androidx.compose.material3.Text("Cancel") }
+        },
+    )
 }
 
 private fun pickAvatarColor(name: String): Color {

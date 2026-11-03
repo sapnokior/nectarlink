@@ -641,8 +641,6 @@ private fun App(
                                 GuideHighlightTarget.HOME_PAIR_PC,
                                 GuideHighlightTarget.HOME_PC_CARD,
                                 GuideHighlightTarget.HOME_PC_AUDIO,
-                                GuideHighlightTarget.HOME_CLIPBOARD_HISTORY,
-                                GuideHighlightTarget.HOME_TIMELINE,
                                 GuideHighlightTarget.HOME_SEND_QUEUE,
                                 GuideHighlightTarget.HOME_SETUP_PERMISSIONS,
                                 GuideHighlightTarget.HOME_LOCALSEND -> Tab.Home

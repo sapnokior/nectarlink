@@ -3,6 +3,11 @@ package app.nectarlink.android.ui.calls
 
 import android.text.format.DateUtils
 import android.widget.Toast
+import app.nectarlink.android.contacts.ContactDefaultsPrefs
+import app.nectarlink.android.contacts.PhoneContacts
+import app.nectarlink.core.Contact
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -92,6 +97,18 @@ fun CallsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showDialpadSheet by remember { mutableStateOf(false) }
     var dialpadNumber by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    var matchingContacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
+
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isBlank() || !PhoneContacts.canRead(context)) {
+            matchingContacts = emptyList()
+        } else {
+            matchingContacts = withContext(Dispatchers.IO) {
+                runCatching { PhoneContacts(context) {}.list(searchQuery, 0, 20) }.getOrDefault(emptyList())
+            }
+        }
+    }
 
     fun refreshCalls() {
         val dev = selectedDevice ?: return
@@ -281,6 +298,27 @@ fun CallsScreen(
                 }
             }
 
+            if (searchQuery.isNotBlank() && matchingContacts.isNotEmpty()) {
+                item(key = "section_contacts") {
+                    Text(
+                        text = "Contacts",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 8.dp, top = 8.dp, bottom = 4.dp),
+                    )
+                }
+                items(matchingContacts, key = { "contact_${it.id}" }) { contact ->
+                    ContactCallSearchItem(
+                        contact = contact,
+                        onDial = { number ->
+                            val dev = selectedDevice ?: return@ContactCallSearchItem
+                            scope.launch { core.peerDial(dev.id, number) }
+                        },
+                    )
+                }
+            }
+
             // Loading state
             if (loading && callLogs.isEmpty()) {
                 item {
@@ -364,6 +402,164 @@ fun CallsScreen(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun ContactCallSearchItem(
+    contact: Contact,
+    onDial: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val numbers = contact.numbers
+    val title = contact.name
+
+    val defaultNum = ContactDefaultsPrefs.getDefaultNumber(context, contact.id)
+    val primaryNumber = if (defaultNum != null && numbers.any { it.number == defaultNum }) {
+        defaultNum
+    } else {
+        numbers.firstOrNull()?.number ?: return
+    }
+    val label = numbers.firstOrNull { it.number == primaryNumber }?.label
+
+    var showNumberPicker by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                if (numbers.size > 1 && defaultNum == null) {
+                    showNumberPicker = true
+                } else {
+                    onDial(primaryNumber)
+                }
+            },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = title.take(1).uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = primaryNumber,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (!label.isNullOrBlank()) {
+                        Text(text = "•", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            IconButton(
+                onClick = {
+                    if (numbers.size > 1 && defaultNum == null) {
+                        showNumberPicker = true
+                    } else {
+                        onDial(primaryNumber)
+                    }
+                },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_call),
+                    contentDescription = "Call",
+                    tint = Color(0xFF2E7D32),
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+    }
+
+    if (showNumberPicker) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showNumberPicker = false },
+            title = { Text("Call $title") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Select a number to call:", style = MaterialTheme.typography.bodyMedium)
+                    numbers.forEach { numInfo ->
+                        val isDefault = ContactDefaultsPrefs.getDefaultNumber(context, contact.id) == numInfo.number
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isDefault) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    ContactDefaultsPrefs.setDefaultNumber(context, contact.id, numInfo.number)
+                                    onDial(numInfo.number)
+                                    showNumberPicker = false
+                                },
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column {
+                                    Text(numInfo.number, fontWeight = FontWeight.Bold)
+                                    Text(numInfo.label ?: "Phone", style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (isDefault) {
+                                    Text("Default", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                } else {
+                                    androidx.compose.material3.TextButton(onClick = {
+                                        ContactDefaultsPrefs.setDefaultNumber(context, contact.id, numInfo.number)
+                                        Toast.makeText(context, "Set as default for $title", Toast.LENGTH_SHORT).show()
+                                    }) {
+                                        Text("Set as default", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showNumberPicker = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 
@@ -528,7 +724,7 @@ private fun GoogleDialerKeypadSheet(
                 .padding(horizontal = 24.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Display Number & Backspace
+            // Display Number, Paste, and Clear
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -537,6 +733,26 @@ private fun GoogleDialerKeypadSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
+                val clipboardManager = LocalClipboardManager.current
+                IconButton(
+                    onClick = {
+                        val clipText = clipboardManager.getText()?.text ?: ""
+                        if (clipText.isNotBlank()) {
+                            onNumberChange(number + clipText.filter { it.isDigit() || it == '+' || it == '*' || it == '#' })
+                        }
+                    },
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_clipboard),
+                        contentDescription = "Paste",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
                 Text(
                     text = number.ifEmpty { "" },
                     style = MaterialTheme.typography.headlineMedium,
@@ -547,16 +763,18 @@ private fun GoogleDialerKeypadSheet(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f),
                 )
+
                 if (number.isNotEmpty()) {
+                    Spacer(Modifier.width(8.dp))
                     IconButton(
-                        onClick = { onNumberChange(number.dropLast(1)) },
+                        onClick = { onNumberChange("") },
                         modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_backspace),
-                            contentDescription = "Backspace",
+                            contentDescription = "Clear",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                 }

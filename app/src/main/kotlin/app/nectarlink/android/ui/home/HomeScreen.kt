@@ -242,8 +242,6 @@ fun HomeScreen(
     onHighlightConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var showClipboardHistory by remember { mutableStateOf(false) }
-    var showTimeline by remember { mutableStateOf(false) }
     var browseFilesPcId by remember { mutableStateOf<String?>(null) }
     var pulsingTarget by remember { mutableStateOf<GuideHighlightTarget?>(null) }
     // Keep a screen of cards composed on each side, so scrolling back does not rebuild them.
@@ -253,17 +251,12 @@ fun HomeScreen(
     )
     val reducedMotion = LocalReducedMotion.current
     val isGlass = LocalGlassTheme.current
-    val anyModalOpen = browseFilesPcId != null || showClipboardHistory || showTimeline
+    val anyModalOpen = browseFilesPcId != null
 
     LaunchedEffect(highlightTarget) {
         val target = highlightTarget ?: return@LaunchedEffect
         pulsingTarget = target
         onHighlightConsumed()
-        if (target == GuideHighlightTarget.HOME_CLIPBOARD_HISTORY && state.clipboardHistory.isEmpty() && state.clipboardHistoryEnabled) {
-            showClipboardHistory = true
-        } else if (target == GuideHighlightTarget.HOME_TIMELINE && state.timeline.isEmpty()) {
-            showTimeline = true
-        }
         delay(60)
         val targetKey = when (target) {
             GuideHighlightTarget.HOME_PAIR_PC -> if (state.devices.isEmpty()) "no_paired_pc_card" else "home_header"
@@ -273,8 +266,6 @@ fun HomeScreen(
             GuideHighlightTarget.HOME_SEND_QUEUE -> if (state.sendQueue.isNotEmpty()) "send_queue" else (state.devices.firstOrNull()?.id ?: "home_header")
             GuideHighlightTarget.HOME_SETUP_PERMISSIONS -> "permissions_setup_card"
             GuideHighlightTarget.HOME_LOCALSEND -> "localsend_card"
-            GuideHighlightTarget.HOME_CLIPBOARD_HISTORY -> "clipboard_history_card"
-            GuideHighlightTarget.HOME_TIMELINE -> "timeline_card"
             else -> "home_header"
         }
         val visibleMatch = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == targetKey }
@@ -651,35 +642,6 @@ fun HomeScreen(
             }
         }
 
-        if (state.clipboardHistoryEnabled && state.clipboardHistory.isNotEmpty()) {
-            item(key = "clipboard_history_card", contentType = "clipboard") {
-                Box(
-                    modifier = Modifier.guideHighlightRing(
-                        highlighted = pulsingTarget == GuideHighlightTarget.HOME_CLIPBOARD_HISTORY,
-                    ),
-                ) {
-                    ClipboardHistoryCard(
-                        entries = state.clipboardHistory,
-                        onOpen = { showClipboardHistory = true },
-                    )
-                }
-            }
-        }
-        if (state.timeline.isNotEmpty()) {
-            item(key = "timeline_card", contentType = "timeline") {
-                Box(
-                    modifier = Modifier.guideHighlightRing(
-                        highlighted = pulsingTarget == GuideHighlightTarget.HOME_TIMELINE,
-                    ),
-                ) {
-                    TimelineCard(
-                        entries = state.timeline,
-                        total = state.timelineTotal,
-                        onOpen = { showTimeline = true },
-                    )
-                }
-            }
-        }
         if (state.transfers.isNotEmpty()) {
             item(key = "transfers_card", contentType = "transfers") {
                 TransfersCard(
@@ -702,31 +664,6 @@ fun HomeScreen(
                 onDownloadPcFile(browseDevice.id, remotePath, fileName, onSaved)
             },
             onDismiss = { browseFilesPcId = null },
-        )
-    }
-
-    if (showClipboardHistory && state.clipboardHistoryEnabled) {
-        ClipboardHistoryDialog(
-            entries = state.clipboardHistory,
-            onCopy = onCopyClipboardHistory,
-            onPin = onPinClipboardHistory,
-            onDelete = onDeleteClipboardHistory,
-            onClearAll = onClearClipboardHistory,
-            loadImage = loadClipboardHistoryImage,
-            onDismiss = { showClipboardHistory = false },
-        )
-    }
-
-    if (showTimeline) {
-        TimelineDialog(
-            state = state,
-            queryPage = queryTimelinePage,
-            onCopyClip = onCopyClipboardHistory,
-            onResend = onResendTimelineEntry,
-            onDelete = onDeleteTimelineEntry,
-            onClearAll = onClearTimeline,
-            loadClipImage = loadClipboardHistoryImage,
-            onDismiss = { showTimeline = false },
         )
     }
 }
