@@ -1461,12 +1461,14 @@ Item {
 
                                                     Item {
                                                         width: parent.width
+                                                        height: implicitHeight
                                                         implicitHeight: permPairWrap.hasRight
                                                             ? Math.max(leftPermRow.implicitHeight, rightPermRow.implicitHeight)
                                                             : leftPermRow.implicitHeight
 
                                                         ListRow {
                                                             id: leftPermRow
+                                                            height: implicitHeight
                                                             visible: permPairWrap.leftItem !== null
                                                             x: 0
                                                             y: Math.round((parent.height - height) / 2)
@@ -1508,6 +1510,7 @@ Item {
 
                                                         ListRow {
                                                             id: rightPermRow
+                                                            height: implicitHeight
                                                             visible: permPairWrap.hasRight
                                                             x: parent.width - width
                                                             y: Math.round((parent.height - height) / 2)

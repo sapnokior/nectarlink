@@ -222,6 +222,8 @@ void NativeWindow::applyFrame()
     DwmSetWindowAttribute(hwnd, kSystemBackdropType, &backdrop, sizeof(backdrop));
     const COLORREF none = kColorNone;
     DwmSetWindowAttribute(hwnd, kCaptionColor, &none, sizeof(none));
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 bool NativeWindow::itemContains(const QQuickItem *item, const QPointF &scenePoint) const
@@ -273,6 +275,21 @@ bool NativeWindow::nativeEvent(const QByteArray &eventType, void *message, qintp
     const MSG *msg = static_cast<const MSG *>(message);
 
     switch (msg->message) {
+    case WM_NCCALCSIZE: {
+        if (msg->wParam == TRUE) {
+            if (IsZoomed(msg->hwnd)) {
+                NCCALCSIZE_PARAMS *params = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
+                HMONITOR hMonitor = MonitorFromWindow(msg->hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO monitorInfo { sizeof(MONITORINFO) };
+                if (GetMonitorInfo(hMonitor, &monitorInfo)) {
+                    params->rgrc[0] = monitorInfo.rcWork;
+                }
+            }
+            *result = 0;
+            return true;
+        }
+        break;
+    }
     case WM_NCHITTEST: {
         const long hit = hitTest(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam));
         if (hit != HTCLIENT) {

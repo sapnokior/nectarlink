@@ -269,14 +269,21 @@ fn run(icon: &Path, queue: mpsc::Receiver<Command>, handler: Handler) {
                 if let Some(active) = active_toasts.remove(&(t_tag.clone(), t_grp.clone())) {
                     let _ = notifier.Hide(&active);
                 }
-                match &history {
-                    Some(h) => h.RemoveGroupedTagWithId(
-                        &HSTRING::from(t_tag),
-                        &HSTRING::from(t_grp),
-                        &aumid,
-                    ),
-                    None => Ok(()),
+                let h_opt = history.as_ref().cloned().or_else(|| ToastNotificationManager::History().ok());
+                if let Some(h) = &h_opt {
+                    let tag_h = HSTRING::from(&t_tag);
+                    let grp_h = HSTRING::from(&t_grp);
+                    let _ = h.RemoveGroupedTagWithId(&tag_h, &grp_h, &aumid);
+                    let _ = h.RemoveGroupedTag(&tag_h, &grp_h);
+                    let _ = h.Remove(&tag_h);
+                    if key.len() <= 64 {
+                        let raw_key_h = HSTRING::from(&key);
+                        let _ = h.RemoveGroupedTagWithId(&raw_key_h, &grp_h, &aumid);
+                        let _ = h.RemoveGroupedTag(&raw_key_h, &grp_h);
+                        let _ = h.Remove(&raw_key_h);
+                    }
                 }
+                Ok(())
             }
             Command::RemoveDevice { device } => {
                 let t_grp = group(&device);
@@ -288,10 +295,13 @@ fn run(icon: &Path, queue: mpsc::Receiver<Command>, handler: Handler) {
                         true
                     }
                 });
-                match &history {
-                    Some(h) => h.RemoveGroupWithId(&HSTRING::from(t_grp), &aumid),
-                    None => Ok(()),
+                let h_opt = history.as_ref().cloned().or_else(|| ToastNotificationManager::History().ok());
+                if let Some(h) = &h_opt {
+                    let grp_h = HSTRING::from(&t_grp);
+                    let _ = h.RemoveGroupWithId(&grp_h, &aumid);
+                    let _ = h.RemoveGroup(&grp_h);
                 }
+                Ok(())
             }
             Command::Progress { device, key, progress } => progress_data(&progress).and_then(|data| {
                 notifier

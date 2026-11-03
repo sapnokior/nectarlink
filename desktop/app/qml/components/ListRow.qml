@@ -17,6 +17,7 @@ Item {
     implicitHeight: stackTrailing
         ? texts.implicitHeight + trailingSlot.childrenRect.height + 34
         : Math.max(56, texts.implicitHeight + 20, trailingSlot.childrenRect.height + 16)
+    height: implicitHeight
 
     Icon {
         id: icon
