@@ -426,9 +426,9 @@ Item {
                         width: Math.floor((dualPhoneRow.width - (DeviceList.count - 1) * dualPhoneRow.spacing) / Math.max(1, DeviceList.count))
                         height: 76
                         radius: Theme.radiusLg
-                        color: index === page.current ? Theme.heroColor : Theme.surface
+                        color: index === page.current ? (Theme.graphite ? Qt.rgba(1, 1, 1, 0.08) : Theme.heroColor) : (Theme.graphite ? "transparent" : Theme.surface)
                         border.width: index === page.current ? 1.5 : 1.0
-                        border.color: index === page.current ? Theme.primary : Theme.outlineVariant
+                        border.color: index === page.current ? (Theme.graphite ? Theme.surfaceContent : Theme.primary) : (Theme.graphite ? Qt.rgba(1, 1, 1, 0.18) : Theme.outlineVariant)
 
                         HoverHandler { id: cardHover }
                         opacity: cardHover.hovered && index !== page.current ? 0.9 : 1.0
@@ -457,7 +457,7 @@ Item {
                                     layer.samples: 4
 
                                     ShapePath {
-                                        strokeColor: Qt.rgba(Theme.onSurface.r, Theme.onSurface.g, Theme.onSurface.b, 0.12)
+                                        strokeColor: Qt.rgba(Theme.surfaceContent.r, Theme.surfaceContent.g, Theme.surfaceContent.b, 0.18)
                                         fillColor: "transparent"
                                         strokeWidth: 3.5
                                         PathAngleArc {
@@ -470,7 +470,7 @@ Item {
                                     ShapePath {
                                         strokeColor: phoneStatusCard.battery <= 20 && !phoneStatusCard.charging
                                             ? Theme.error
-                                            : (phoneStatusCard.charging ? "#4ADE80" : Theme.primary)
+                                            : (phoneStatusCard.charging ? "#4ADE80" : (Theme.graphite ? Theme.surfaceContent : Theme.primary))
                                         fillColor: "transparent"
                                         strokeWidth: 3.5
                                         capStyle: ShapePath.RoundCap
@@ -489,9 +489,9 @@ Item {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         text: phoneStatusCard.battery >= 0 ? phoneStatusCard.battery + "%" : "—"
                                         role: "label"
-                                        size: 11
+                                        size: 12
                                         weight: 700
-                                        color: Theme.onSurface
+                                        color: Theme.surfaceContent
                                     }
                                 }
                             }
@@ -514,9 +514,9 @@ Item {
                                     Txt {
                                         text: phoneStatusCard.name
                                         role: "title"
-                                        size: 14
+                                        size: 15
                                         weight: index === page.current ? 700 : 500
-                                        color: Theme.onSurface
+                                        color: Theme.surfaceContent
                                         elide: Text.ElideRight
                                         width: parent.width - 24
                                     }
@@ -527,17 +527,21 @@ Item {
                                     Txt {
                                         text: phoneStatusCard.charging ? qsTr("⚡ Charging") : (phoneStatusCard.batteryFullIn > 0 ? qsTr("~%1m left").arg(phoneStatusCard.batteryFullIn) : qsTr("On battery"))
                                         role: "caption"
-                                        color: phoneStatusCard.charging ? "#4ADE80" : Theme.surfaceContentVariant
+                                        size: 12
+                                        weight: 500
+                                        color: phoneStatusCard.charging ? "#4ADE80" : (index === page.current ? Theme.surfaceContent : Theme.surfaceContentVariant)
                                     }
                                     Txt {
                                         text: "·"
                                         role: "caption"
+                                        size: 12
                                         color: Theme.surfaceContentVariant
                                         visible: phoneStatusCard.online
                                     }
                                     Txt {
                                         text: phoneStatusCard.cellType.length > 0 ? phoneStatusCard.cellType : (phoneStatusCard.rttMs > 0 ? phoneStatusCard.rttMs + " ms" : "Wi-Fi")
                                         role: "caption"
+                                        size: 12
                                         color: Theme.surfaceContentVariant
                                         visible: phoneStatusCard.online
                                     }

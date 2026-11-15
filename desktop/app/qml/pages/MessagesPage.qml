@@ -289,10 +289,53 @@ Item {
             }
         }
 
+        // Phone switcher chips (when multiple devices are paired).
+        Flickable {
+            id: msgDeviceFlick
+            anchors.top: listHeader.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            height: visible ? 34 : 0
+            visible: DeviceList.count > 1
+            contentWidth: msgDeviceRow.width
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.HorizontalFlick
+            clip: true
+
+            Row {
+                id: msgDeviceRow
+                height: 32
+                spacing: 8
+
+                Repeater {
+                    model: DeviceList
+                    delegate: Chip {
+                        required property int index
+                        required property string name
+                        required property string deviceId
+                        required property int battery
+                        text: battery >= 0 ? (name + " (" + battery + "%)") : name
+                        interactive: true
+                        selected: page.deviceId === deviceId
+                        onClicked: {
+                            if (page.deviceId !== deviceId) {
+                                AppController.currentDevice = index
+                                Messages.open(deviceId)
+                                PhoneCall.ensureContacts(deviceId)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Search: by name, number, app, or the latest text.
         Rectangle {
             id: searchBox
-            anchors.top: listHeader.bottom
+            anchors.top: msgDeviceFlick.visible ? msgDeviceFlick.bottom : listHeader.bottom
+            anchors.topMargin: msgDeviceFlick.visible ? 8 : 0
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 16

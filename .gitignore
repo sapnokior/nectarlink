@@ -1,4 +1,6 @@
-# ---- Secrets: never commit these ----
+# Local scripts
+open-chat-admin.ps1
+
 *.jks
 *.keystore
 *.p12
@@ -42,9 +44,7 @@ android/**/jniLibs/
 # ---- IDEs and editors ----
 .idea/
 *.iml
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+.vscode/
 *.swp
 *.swo
 

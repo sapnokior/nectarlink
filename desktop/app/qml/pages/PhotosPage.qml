@@ -281,7 +281,7 @@ Item {
     Item {
         id: albumPane
         visible: !page.phoneOffline
-        width: page.width < 760 ? 200 : 248
+        width: page.width < 760 ? 220 : Math.min(300, Math.max(260, Math.round(page.width * 0.20)))
         height: parent.height
 
         Item {
@@ -308,31 +308,40 @@ Item {
         }
 
         // Device switcher chips (when multiple devices are paired).
-        Row {
-            id: photoDeviceRow
+        Flickable {
+            id: photoDeviceFlick
             anchors.top: albumHeader.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 16
             anchors.rightMargin: 16
-            spacing: 8
+            height: visible ? 34 : 0
             visible: DeviceList.count > 1
-            height: visible ? 32 : 0
+            contentWidth: photoDeviceRow.width
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.HorizontalFlick
+            clip: true
 
-            Repeater {
-                model: DeviceList
-                delegate: Chip {
-                    required property int index
-                    required property string name
-                    required property string deviceId
-                    text: name
-                    interactive: true
-                    selected: page.deviceId === deviceId
-                    onClicked: {
-                        if (page.deviceId !== deviceId) {
-                            page.deviceId = deviceId
-                            AppController.currentDevice = index
-                            Photos.open(deviceId)
+            Row {
+                id: photoDeviceRow
+                height: 32
+                spacing: 8
+
+                Repeater {
+                    model: DeviceList
+                    delegate: Chip {
+                        required property int index
+                        required property string name
+                        required property string deviceId
+                        required property int battery
+                        text: battery >= 0 ? (name + " (" + battery + "%)") : name
+                        interactive: true
+                        selected: page.deviceId === deviceId
+                        onClicked: {
+                            if (page.deviceId !== deviceId) {
+                                AppController.currentDevice = index
+                                Photos.open(deviceId)
+                            }
                         }
                     }
                 }
@@ -340,8 +349,8 @@ Item {
         }
 
         Flickable {
-            anchors.top: photoDeviceRow.visible ? photoDeviceRow.bottom : albumHeader.bottom
-            anchors.topMargin: photoDeviceRow.visible ? 8 : 0
+            anchors.top: photoDeviceFlick.visible ? photoDeviceFlick.bottom : albumHeader.bottom
+            anchors.topMargin: photoDeviceFlick.visible ? 8 : 0
             anchors.bottom: parent.bottom
             width: parent.width
             contentHeight: albumCol.height + 16
@@ -423,11 +432,6 @@ Item {
                     size: 16
                     elide: Text.ElideRight
                     text: page.currentAlbumName
-                }
-                Chip {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: DeviceList.count > 1 && page.deviceName.length > 0
-                    text: page.deviceName
                 }
                 Txt {
                     anchors.verticalCenter: parent.verticalCenter

@@ -229,32 +229,40 @@ Item {
         }
 
         // Phone switcher chips (when multiple devices are paired).
-        Row {
-            id: callDeviceSelectorRow
+        Flickable {
+            id: callDeviceSelectorFlick
             anchors.top: listHeader.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 16
             anchors.rightMargin: 16
-            spacing: 8
+            height: visible ? 34 : 0
             visible: DeviceList.count > 1
-            height: visible ? 32 : 0
+            contentWidth: callDeviceSelectorRow.width
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.HorizontalFlick
+            clip: true
 
-            Repeater {
-                model: DeviceList
-                delegate: Chip {
-                    required property int index
-                    required property string name
-                    required property string deviceId
-                    required property int battery
-                    text: battery >= 0 ? (name + " (" + battery + "%)") : name
-                    interactive: true
-                    selected: page.deviceId === deviceId
-                    onClicked: {
-                        if (page.deviceId !== deviceId) {
-                            page.deviceId = deviceId
-                            AppController.currentDevice = index
-                            PhoneCall.open(deviceId)
+            Row {
+                id: callDeviceSelectorRow
+                height: 32
+                spacing: 8
+
+                Repeater {
+                    model: DeviceList
+                    delegate: Chip {
+                        required property int index
+                        required property string name
+                        required property string deviceId
+                        required property int battery
+                        text: battery >= 0 ? (name + " (" + battery + "%)") : name
+                        interactive: true
+                        selected: page.deviceId === deviceId
+                        onClicked: {
+                            if (page.deviceId !== deviceId) {
+                                AppController.currentDevice = index
+                                PhoneCall.open(deviceId)
+                            }
                         }
                     }
                 }
@@ -264,8 +272,8 @@ Item {
         // Search: by name or number.
         Rectangle {
             id: searchBox
-            anchors.top: callDeviceSelectorRow.visible ? callDeviceSelectorRow.bottom : listHeader.bottom
-            anchors.topMargin: callDeviceSelectorRow.visible ? 8 : 0
+            anchors.top: callDeviceSelectorFlick.visible ? callDeviceSelectorFlick.bottom : listHeader.bottom
+            anchors.topMargin: callDeviceSelectorFlick.visible ? 8 : 0
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 16
@@ -1366,7 +1374,7 @@ Item {
                                 height: 36
                                 radius: 18
                                 anchors.verticalCenter: parent.verticalCenter
-                                color: Qt.rgba(Theme.onSurface.r, Theme.onSurface.g, Theme.onSurface.b, 0.08)
+                                color: Qt.rgba(Theme.surfaceContent.r, Theme.surfaceContent.g, Theme.surfaceContent.b, 0.08)
                                 Icon {
                                     anchors.centerIn: parent
                                     width: 18
@@ -1391,7 +1399,7 @@ Item {
                                         text: phoneOption.name
                                         role: "body"
                                         weight: 650
-                                        color: Theme.onSurface
+                                        color: Theme.surfaceContent
                                         elide: Text.ElideRight
                                     }
                                 }
