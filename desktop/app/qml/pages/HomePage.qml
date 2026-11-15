@@ -401,21 +401,149 @@ Item {
                 }
             }
 
-            // Device switcher (only with more than one device).
+            // Dual-phone horizontal battery & charging status bar (shown when multiple devices are paired).
             Row {
-                spacing: 8
+                id: dualPhoneRow
+                spacing: 12
                 visible: DeviceList.count > 1
+                width: column.width
+
                 Repeater {
                     model: DeviceList
-                    delegate: Chip {
+                    delegate: Rectangle {
+                        id: phoneStatusCard
                         required property int index
                         required property string name
                         required property string kind
-                        interactive: true
-                        text: name
-                        iconPath: kind === "tablet" || kind === "phone" ? Icons.phone : Icons.laptop
-                        selected: index === page.current
-                        onClicked: page.current = index
+                        required property int battery
+                        required property bool charging
+                        required property int batteryFullIn
+                        required property bool online
+                        required property string path
+                        required property int rttMs
+                        required property string cellType
+
+                        width: Math.floor((dualPhoneRow.width - (DeviceList.count - 1) * dualPhoneRow.spacing) / Math.max(1, DeviceList.count))
+                        height: 76
+                        radius: Theme.radiusLg
+                        color: index === page.current ? Theme.heroColor : Theme.surface
+                        border.width: index === page.current ? 1.5 : 1.0
+                        border.color: index === page.current ? Theme.primary : Theme.outlineVariant
+
+                        HoverHandler { id: cardHover }
+                        opacity: cardHover.hovered && index !== page.current ? 0.9 : 1.0
+
+                        TapHandler {
+                            onTapped: {
+                                page.current = index
+                                AppController.currentDevice = index
+                            }
+                        }
+
+                        Row {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 12
+
+                            // Circular battery gauge
+                            Item {
+                                width: 48
+                                height: 48
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Shape {
+                                    anchors.fill: parent
+                                    layer.enabled: true
+                                    layer.samples: 4
+
+                                    ShapePath {
+                                        strokeColor: Qt.rgba(Theme.onSurface.r, Theme.onSurface.g, Theme.onSurface.b, 0.12)
+                                        fillColor: "transparent"
+                                        strokeWidth: 3.5
+                                        PathAngleArc {
+                                            centerX: 24; centerY: 24
+                                            radiusX: 20; radiusY: 20
+                                            startAngle: 0; sweepAngle: 360
+                                        }
+                                    }
+
+                                    ShapePath {
+                                        strokeColor: phoneStatusCard.battery <= 20 && !phoneStatusCard.charging
+                                            ? Theme.error
+                                            : (phoneStatusCard.charging ? "#4ADE80" : Theme.primary)
+                                        fillColor: "transparent"
+                                        strokeWidth: 3.5
+                                        capStyle: ShapePath.RoundCap
+                                        PathAngleArc {
+                                            centerX: 24; centerY: 24
+                                            radiusX: 20; radiusY: 20
+                                            startAngle: -90
+                                            sweepAngle: 360 * (Math.max(0, Math.min(100, phoneStatusCard.battery)) / 100.0)
+                                        }
+                                    }
+                                }
+
+                                Column {
+                                    anchors.centerIn: parent
+                                    Txt {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: phoneStatusCard.battery >= 0 ? phoneStatusCard.battery + "%" : "—"
+                                        role: "label"
+                                        size: 11
+                                        bold: true
+                                        color: Theme.onSurface
+                                    }
+                                }
+                            }
+
+                            // Device info + charging state
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                width: parent.width - 60
+
+                                Row {
+                                    spacing: 6
+                                    width: parent.width
+
+                                    StatusDot {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        status: phoneStatusCard.online ? "connected" : "offline"
+                                    }
+
+                                    Txt {
+                                        text: phoneStatusCard.name
+                                        role: "title"
+                                        size: 14
+                                        bold: index === page.current
+                                        color: Theme.onSurface
+                                        elide: Text.ElideRight
+                                        width: parent.width - 24
+                                    }
+                                }
+
+                                Row {
+                                    spacing: 6
+                                    Txt {
+                                        text: phoneStatusCard.charging ? qsTr("⚡ Charging") : (phoneStatusCard.batteryFullIn > 0 ? qsTr("~%1m left").arg(phoneStatusCard.batteryFullIn) : qsTr("On battery"))
+                                        role: "caption"
+                                        color: phoneStatusCard.charging ? "#4ADE80" : Theme.surfaceContentVariant
+                                    }
+                                    Txt {
+                                        text: "·"
+                                        role: "caption"
+                                        color: Theme.surfaceContentVariant
+                                        visible: phoneStatusCard.online
+                                    }
+                                    Txt {
+                                        text: phoneStatusCard.cellType.length > 0 ? phoneStatusCard.cellType : (phoneStatusCard.rttMs > 0 ? phoneStatusCard.rttMs + " ms" : "Wi-Fi")
+                                        role: "caption"
+                                        color: Theme.surfaceContentVariant
+                                        visible: phoneStatusCard.online
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

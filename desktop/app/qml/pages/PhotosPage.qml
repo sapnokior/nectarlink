@@ -307,8 +307,41 @@ Item {
             }
         }
 
-        Flickable {
+        // Device switcher chips (when multiple devices are paired).
+        Row {
+            id: photoDeviceRow
             anchors.top: albumHeader.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            spacing: 8
+            visible: DeviceList.count > 1
+            height: visible ? 32 : 0
+
+            Repeater {
+                model: DeviceList
+                delegate: Chip {
+                    required property int index
+                    required property string name
+                    required property string deviceId
+                    text: name
+                    interactive: true
+                    selected: page.deviceId === deviceId
+                    onClicked: {
+                        if (page.deviceId !== deviceId) {
+                            page.deviceId = deviceId
+                            AppController.currentDevice = index
+                            Photos.open(deviceId)
+                        }
+                    }
+                }
+            }
+        }
+
+        Flickable {
+            anchors.top: photoDeviceRow.visible ? photoDeviceRow.bottom : albumHeader.bottom
+            anchors.topMargin: photoDeviceRow.visible ? 8 : 0
             anchors.bottom: parent.bottom
             width: parent.width
             contentHeight: albumCol.height + 16
@@ -390,6 +423,11 @@ Item {
                     size: 16
                     elide: Text.ElideRight
                     text: page.currentAlbumName
+                }
+                Chip {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: DeviceList.count > 1 && page.deviceName.length > 0
+                    text: page.deviceName
                 }
                 Txt {
                     anchors.verticalCenter: parent.verticalCenter

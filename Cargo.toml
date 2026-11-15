@@ -13,22 +13,22 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.7"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.97"
 authors = ["The NectarLink contributors"]
 repository = "https://github.com/thtbee/nectarlink"
 
-# Each release's name, from a bee's life (0.1 Pollen, …); the release
+# Each release's name, from a bee's life (0.1 Pollen, 0.2 Nectar, …); the release
 # workflow puts it in the release's title.
 [workspace.metadata.release]
-name = "Pollen"
+name = "Nectar"
 
 [workspace.dependencies]
-nectarlink-adb = { path = "core/nectarlink-adb", version = "0.1.7" }
-nectarlink-protocol = { path = "core/nectarlink-protocol", version = "0.1.7" }
-nectarlink-core = { path = "core/nectarlink-core", version = "0.1.7" }
-nectarlink-vcam = { path = "desktop/vcam", version = "0.1.7" }
+nectarlink-adb = { path = "core/nectarlink-adb", version = "0.2.0" }
+nectarlink-protocol = { path = "core/nectarlink-protocol", version = "0.2.0" }
+nectarlink-core = { path = "core/nectarlink-core", version = "0.2.0" }
+nectarlink-vcam = { path = "desktop/vcam", version = "0.2.0" }
 
 anyhow = "1"
 ciborium = "0.2"

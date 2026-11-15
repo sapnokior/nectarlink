@@ -97,9 +97,15 @@ Item {
         return qsTr("%1s").arg(s)
     }
 
-    function placeCall(number) {
+    function placeCall(number, name) {
         const n = (number || "").trim()
-        if (n.length === 0 || !PhoneCall.canDial || PhoneCall.dialing)
+        if (n.length === 0)
+            return
+        if (DeviceList.count > 1) {
+            choosePhoneSheet.openForNumber(n, name || (dialMatchedContact ? dialMatchedContact.name : ""))
+            return
+        }
+        if (!PhoneCall.canDial || PhoneCall.dialing)
             return
         PhoneCall.dial(n)
     }
@@ -222,10 +228,44 @@ Item {
             }
         }
 
+        // Phone switcher chips (when multiple devices are paired).
+        Row {
+            id: callDeviceSelectorRow
+            anchors.top: listHeader.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            spacing: 8
+            visible: DeviceList.count > 1
+            height: visible ? 32 : 0
+
+            Repeater {
+                model: DeviceList
+                delegate: Chip {
+                    required property int index
+                    required property string name
+                    required property string deviceId
+                    required property int battery
+                    text: battery >= 0 ? (name + " (" + battery + "%)") : name
+                    interactive: true
+                    selected: page.deviceId === deviceId
+                    onClicked: {
+                        if (page.deviceId !== deviceId) {
+                            page.deviceId = deviceId
+                            AppController.currentDevice = index
+                            PhoneCall.open(deviceId)
+                        }
+                    }
+                }
+            }
+        }
+
         // Search: by name or number.
         Rectangle {
             id: searchBox
-            anchors.top: listHeader.bottom
+            anchors.top: callDeviceSelectorRow.visible ? callDeviceSelectorRow.bottom : listHeader.bottom
+            anchors.topMargin: callDeviceSelectorRow.visible ? 8 : 0
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: 16
@@ -591,7 +631,7 @@ Item {
                                     label: qsTr("Call %1").arg(numRow.modelData.number)
                                     onClicked: {
                                         dialInput.text = numRow.modelData.number
-                                        page.placeCall(numRow.modelData.number)
+                                        page.placeCall(numRow.modelData.number, page.selectedContact ? page.selectedContact.name : "")
                                     }
                                 }
                             }
@@ -1015,7 +1055,7 @@ Item {
                     label: qsTr("Call %1").arg(row.displayName)
                     onClicked: {
                         dialInput.text = row.entry.number
-                        page.placeCall(row.entry.number)
+                        page.placeCall(row.entry.number, row.displayName)
                     }
                 }
             }
@@ -1188,7 +1228,7 @@ Item {
                     label: qsTr("Call %1").arg(crow.contact.name)
                     onClicked: {
                         dialInput.text = crow.primaryNumber
-                        page.placeCall(crow.primaryNumber)
+                        page.placeCall(crow.primaryNumber, crow.contact.name)
                     }
                 }
             }
@@ -1208,5 +1248,205 @@ Item {
         visible: opacity > 0
         opacity: AppController.highlightTarget === "calls:main" ? 1.0 : 0.0
         Behavior on opacity { NumberAnimation { duration: Theme.fadeFast } }
+    }
+
+    // Modal sheet to ask which phone to place the call from when multiple phones are paired
+    Sheet {
+        id: choosePhoneSheet
+        cardWidth: 440
+        property string targetNumber: ""
+        property string targetName: ""
+
+        function openForNumber(number, name) {
+            targetNumber = number
+            targetName = name || ""
+            open()
+        }
+
+        Column {
+            width: parent.width
+            spacing: 16
+
+            Row {
+                width: parent.width
+                spacing: 12
+
+                Rectangle {
+                    width: 44
+                    height: 44
+                    radius: 22
+                    color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.15)
+                    Icon {
+                        anchors.centerIn: parent
+                        width: 22
+                        height: 22
+                        path: Icons.call
+                        color: Theme.primary
+                    }
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 56
+                    spacing: 2
+
+                    Txt {
+                        width: parent.width
+                        role: "title"
+                        size: 16
+                        bold: true
+                        text: qsTr("Call with which phone?")
+                        elide: Text.ElideRight
+                    }
+
+                    Txt {
+                        width: parent.width
+                        role: "bodySmall"
+                        muted: true
+                        text: choosePhoneSheet.targetName.length > 0
+                            ? (choosePhoneSheet.targetName + " (" + choosePhoneSheet.targetNumber + ")")
+                            : choosePhoneSheet.targetNumber
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+
+            Txt {
+                role: "caption"
+                muted: true
+                text: qsTr("Select the phone you want to place this call from:")
+            }
+
+            Column {
+                width: parent.width
+                spacing: 8
+
+                Repeater {
+                    model: DeviceList
+                    delegate: Rectangle {
+                        id: phoneOption
+                        required property int index
+                        required property string deviceId
+                        required property string name
+                        required property int battery
+                        required property bool charging
+                        required property bool online
+
+                        width: parent.width
+                        height: 60
+                        radius: Theme.radiusMd
+                        color: optHover.hovered ? Theme.heroColor : Theme.surface
+                        border.width: 1
+                        border.color: optHover.hovered ? Theme.primary : Theme.outlineVariant
+
+                        HoverHandler { id: optHover; cursorShape: Qt.PointingHandCursor }
+
+                        TapHandler {
+                            onTapped: {
+                                const num = choosePhoneSheet.targetNumber
+                                const devId = phoneOption.deviceId
+                                const idx = phoneOption.index
+                                choosePhoneSheet.close()
+                                if (page.deviceId !== devId) {
+                                    page.deviceId = devId
+                                    AppController.currentDevice = idx
+                                    PhoneCall.open(devId)
+                                }
+                                PhoneCall.dial(num)
+                            }
+                        }
+
+                        Row {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 12
+
+                            Rectangle {
+                                width: 36
+                                height: 36
+                                radius: 18
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: Qt.rgba(Theme.onSurface.r, Theme.onSurface.g, Theme.onSurface.b, 0.08)
+                                Icon {
+                                    anchors.centerIn: parent
+                                    width: 18
+                                    height: 18
+                                    path: Icons.phone
+                                    color: phoneOption.online ? Theme.primary : Theme.surfaceContentVariant
+                                }
+                            }
+
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 120
+                                spacing: 2
+
+                                Row {
+                                    spacing: 6
+                                    StatusDot {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        status: phoneOption.online ? "connected" : "offline"
+                                    }
+                                    Txt {
+                                        text: phoneOption.name
+                                        role: "body"
+                                        bold: true
+                                        color: Theme.onSurface
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                Row {
+                                    spacing: 6
+                                    Txt {
+                                        text: phoneOption.battery >= 0 ? (phoneOption.battery + "%") : ""
+                                        role: "caption"
+                                        color: phoneOption.charging ? "#4ADE80" : Theme.surfaceContentVariant
+                                    }
+                                    Txt {
+                                        text: phoneOption.charging ? qsTr("⚡ Charging") : (phoneOption.online ? qsTr("Ready") : qsTr("Offline"))
+                                        role: "caption"
+                                        color: phoneOption.charging ? "#4ADE80" : Theme.surfaceContentVariant
+                                    }
+                                }
+                            }
+
+                            Button {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.right: parent.right
+                                variant: "tonal"
+                                size: "sm"
+                                iconPath: Icons.call
+                                text: qsTr("Call")
+                                enabled: phoneOption.online
+                                onClicked: {
+                                    const num = choosePhoneSheet.targetNumber
+                                    const devId = phoneOption.deviceId
+                                    const idx = phoneOption.index
+                                    choosePhoneSheet.close()
+                                    if (page.deviceId !== devId) {
+                                        page.deviceId = devId
+                                        AppController.currentDevice = idx
+                                        PhoneCall.open(devId)
+                                    }
+                                    PhoneCall.dial(num)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row {
+                anchors.right: parent.right
+                spacing: 8
+                Button {
+                    variant: "outline"
+                    size: "sm"
+                    text: qsTr("Cancel")
+                    onClicked: choosePhoneSheet.close()
+                }
+            }
+        }
     }
 }
