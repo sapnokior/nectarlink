@@ -1294,7 +1294,7 @@ Item {
                         width: parent.width
                         role: "title"
                         size: 16
-                        bold: true
+                        weight: 700
                         text: qsTr("Call with which phone?")
                         elide: Text.ElideRight
                     }
@@ -1390,7 +1390,7 @@ Item {
                                     Txt {
                                         text: phoneOption.name
                                         role: "body"
-                                        bold: true
+                                        weight: 650
                                         color: Theme.onSurface
                                         elide: Text.ElideRight
                                     }

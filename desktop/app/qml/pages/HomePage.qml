@@ -490,7 +490,7 @@ Item {
                                         text: phoneStatusCard.battery >= 0 ? phoneStatusCard.battery + "%" : "—"
                                         role: "label"
                                         size: 11
-                                        bold: true
+                                        weight: 700
                                         color: Theme.onSurface
                                     }
                                 }
@@ -515,7 +515,7 @@ Item {
                                         text: phoneStatusCard.name
                                         role: "title"
                                         size: 14
-                                        bold: index === page.current
+                                        weight: index === page.current ? 700 : 500
                                         color: Theme.onSurface
                                         elide: Text.ElideRight
                                         width: parent.width - 24

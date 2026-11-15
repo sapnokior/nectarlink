@@ -703,7 +703,7 @@ Item {
                 visible: Photos.count > 0
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                cacheBuffer: height
+                cacheBuffer: Math.max(0, height)
                 readonly property int columns: Math.max(2, Math.floor((width - 8) / 164))
                 cellWidth: Math.floor((width - 8) / columns)
                 cellHeight: cellWidth
