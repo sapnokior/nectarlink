@@ -1385,7 +1385,7 @@ Item {
                                     spacing: 6
                                     StatusDot {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        status: phoneOption.online ? "connected" : "offline"
+                                        online: phoneOption.online
                                     }
                                     Txt {
                                         text: phoneOption.name

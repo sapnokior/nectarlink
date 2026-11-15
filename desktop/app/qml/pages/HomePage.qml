@@ -508,7 +508,7 @@ Item {
 
                                     StatusDot {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        status: phoneStatusCard.online ? "connected" : "offline"
+                                        online: phoneStatusCard.online
                                     }
 
                                     Txt {
