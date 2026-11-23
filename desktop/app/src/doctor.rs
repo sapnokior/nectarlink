@@ -215,6 +215,8 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
     }
 
     // The firewall.
+    let has_connected_device = facts.local_address
+        && facts.devices.iter().any(|d| matches!(d.link, LinkState::Online { .. }));
     match facts.firewall {
         None => {}
         Some(f) if !f.on => {
@@ -226,7 +228,7 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
                 None,
             ));
         }
-        Some(f) if f.blocked => checks.push(check(
+        Some(f) if f.blocked && !has_connected_device => checks.push(check(
             "firewall",
             Outcome::Fail,
             tr!("Doctor", "Windows Firewall blocks NectarLink"),
@@ -236,7 +238,7 @@ pub fn diagnose(facts: &Facts, now_secs: i64) -> Vec<Check> {
             ),
             Some("firewall"),
         )),
-        Some(f) if !f.allowed => checks.push(check(
+        Some(f) if !f.allowed && !has_connected_device => checks.push(check(
             "firewall",
             Outcome::Warn,
             tr!("Doctor", "NectarLink isn't allowed through Windows Firewall"),

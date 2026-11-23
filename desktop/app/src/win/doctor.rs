@@ -62,7 +62,14 @@ pub struct Network {
 
 /// The firewall's rules for `exe`.
 pub fn firewall(exe: &Path) -> windows::core::Result<Firewall> {
-    let exe = exe.to_string_lossy().to_lowercase();
+    let raw_exe = exe.to_string_lossy().to_lowercase();
+    let clean_exe = raw_exe.strip_prefix(r"\\?\").unwrap_or(&raw_exe).to_string();
+    let file_name = Path::new(&clean_exe)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("nectarlink-desktop.exe")
+        .to_lowercase();
+
     with_com(|| {
         // SAFETY: COM calls on live objects; every VARIANT is cleared.
         unsafe {
@@ -92,16 +99,46 @@ pub fn firewall(exe: &Path) -> windows::core::Result<Firewall> {
                 let rule = IUnknown::try_from(&item[0]).ok().and_then(|u| u.cast::<INetFwRule>().ok());
                 let _ = VariantClear(&mut item[0]);
                 let Some(rule) = rule else { continue };
-                let applies = rule.Enabled().is_ok_and(|e| e.as_bool())
-                    && rule.Direction().is_ok_and(|d| d == NET_FW_RULE_DIR_IN)
-                    && rule.Profiles().is_ok_and(|p| p & profiles != 0)
-                    && rule.ApplicationName().is_ok_and(|a| a.to_string().to_lowercase() == exe);
-                if !applies {
+
+                let is_inbound = rule.Direction().is_ok_and(|d| d == NET_FW_RULE_DIR_IN);
+                let is_enabled = rule.Enabled().is_ok_and(|e| e.as_bool());
+                if !is_inbound || !is_enabled {
                     continue;
                 }
+
+                let matches_app = rule.ApplicationName().is_ok_and(|a| {
+                    let app = a.to_string().to_lowercase();
+                    let app_clean = app.strip_prefix(r"\\?\").unwrap_or(&app);
+                    app_clean == clean_exe
+                        || app_clean.ends_with(&file_name)
+                        || app_clean.ends_with("nectarlink-desktop.exe")
+                        || app_clean.ends_with("nectarlink.exe")
+                        || app_clean.ends_with("nectarlink-lite.exe")
+                });
+                let matches_name = rule.Name().is_ok_and(|n| {
+                    let name = n.to_string().to_lowercase();
+                    name.contains("nectarlink")
+                });
+
+                if !matches_app && !matches_name {
+                    continue;
+                }
+
+                let rule_profiles = rule.Profiles().unwrap_or(0);
+                let applies_to_active = rule_profiles & profiles != 0 || rule_profiles == 0x7FFFFFFF;
+                let applies_to_private = rule_profiles & 3 != 0; // Domain (1) | Private (2)
+
                 match rule.Action() {
-                    Ok(a) if a == NET_FW_ACTION_ALLOW => result.allowed = true,
-                    Ok(a) if a == NET_FW_ACTION_BLOCK => result.blocked = true,
+                    Ok(a) if a == NET_FW_ACTION_ALLOW => {
+                        if applies_to_active || applies_to_private {
+                            result.allowed = true;
+                        }
+                    }
+                    Ok(a) if a == NET_FW_ACTION_BLOCK => {
+                        if applies_to_active && applies_to_private {
+                            result.blocked = true;
+                        }
+                    }
                     _ => {}
                 }
             }
